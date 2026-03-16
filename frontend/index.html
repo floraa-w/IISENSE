@@ -217,9 +217,7 @@
       white-space: nowrap;
     }
 
-    .health-detail {
-      flex: 1;
-    }
+    .health-detail { flex: 1; }
 
     .health-level-tag {
       display: inline-block;
@@ -277,10 +275,7 @@
       color: var(--text-muted);
     }
 
-    .legend-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-    }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
 
     .chart-wrap {
       position: relative;
@@ -288,10 +283,7 @@
       height: 220px;
     }
 
-    canvas#trendChart {
-      width: 100% !important;
-      height: 100% !important;
-    }
+    canvas#trendChart { width: 100% !important; height: 100% !important; }
 
     .history-card {
       background: var(--surface);
@@ -313,10 +305,7 @@
       color: var(--navy);
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
+    table { width: 100%; border-collapse: collapse; }
 
     thead th {
       font-family: var(--mono);
@@ -373,12 +362,9 @@
       box-shadow: 0 4px 18px rgba(26,58,92,0.25);
     }
 
-    .btn-run:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 28px rgba(26,58,92,0.32);
-    }
-
+    .btn-run:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(26,58,92,0.32); }
     .btn-run:active { transform: translateY(0); }
+    .btn-run:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
     .btn-run svg { flex-shrink: 0; }
 
     #toast {
@@ -546,7 +532,7 @@
 
 <div id="connectingOverlay">
   <div class="spinner"></div>
-  <div class="connecting-text">Connecting to sensor via Bluetooth…</div>
+  <div class="connecting-text" id="connectingText">Connecting to sensor via Bluetooth…</div>
 </div>
 
 <div id="toast"></div>
@@ -554,133 +540,124 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 
 <script>
-const BLE_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
-const BLE_DATA_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
-const BLE_COMMAND_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+// ── BLE UUIDs (must match firmware exactly) ───────────────────────
+const BLE_DEVICE_NAME       = 'Sense-ESP32';
+const BLE_SERVICE_UUID      = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const BLE_TX_CHAR_UUID      = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // notify (ESP32 → browser)
+const BLE_RX_CHAR_UUID      = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // write  (browser → ESP32)
 
-let connected = false;
-let bleDevice = null;
-let bleServer = null;
-let bleService = null;
-let dataCharacteristic = null;
-let commandCharacteristic = null;
+// ── BLE state ─────────────────────────────────────────────────────
+let connected            = false;
+let bleDevice            = null;
+let bleServer            = null;
+let bleService           = null;
+let txCharacteristic     = null; // notifications in
+let rxCharacteristic     = null; // commands out
+let receiveBuffer        = '';   // accumulates partial BLE packets
 
+// ── Test history (seed with demo data) ───────────────────────────
 const history = [
-  { date: 'Feb 6',  urea: 14, glucose: 88, health: 87 },
-  { date: 'Feb 13', urea: 16, glucose: 92, health: 82 },
-  { date: 'Feb 20', urea: 18, glucose: 96, health: 75 },
-  { date: 'Feb 27', urea: 17, glucose: 94, health: 78 },
+  { date: 'Feb 6',  urea: 14, glucose: 88,  health: 87 },
+  { date: 'Feb 13', urea: 16, glucose: 92,  health: 82 },
+  { date: 'Feb 20', urea: 18, glucose: 96,  health: 75 },
+  { date: 'Feb 27', urea: 17, glucose: 94,  health: 78 },
 ];
 
-const ctx = document.getElementById('trendChart').getContext('2d');
-
-const chartLabels = () => history.map(h => h.date);
-const chartUrea = () => history.map(h => h.urea);
-const chartGlucose = () => history.map(h => h.glucose);
-
+// ── Chart setup ───────────────────────────────────────────────────
 Chart.defaults.font.family = "'DM Mono', monospace";
 
-const trendChart = new Chart(ctx, {
-  type: 'line',
-  data: {
-    labels: chartLabels(),
-    datasets: [
-      {
-        label: 'Urea',
-        data: chartUrea(),
-        borderColor: '#4a9aba',
-        backgroundColor: 'rgba(74,154,186,0.08)',
-        borderWidth: 2.5,
-        pointBackgroundColor: '#4a9aba',
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        tension: 0.4,
-        fill: true,
-      },
-      {
-        label: 'Glucose',
-        data: chartGlucose(),
-        borderColor: '#3ecf8e',
-        backgroundColor: 'rgba(62,207,142,0.07)',
-        borderWidth: 2.5,
-        pointBackgroundColor: '#3ecf8e',
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        tension: 0.4,
-        fill: true,
-      }
-    ]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: 'index', intersect: false },
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        backgroundColor: '#0d2238',
-        titleColor: '#7eb8d4',
-        bodyColor: '#cde4f0',
-        padding: 12,
-        cornerRadius: 8,
-        callbacks: {
-          label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} mg/dL`
+const trendChart = new Chart(
+  document.getElementById('trendChart').getContext('2d'),
+  {
+    type: 'line',
+    data: {
+      labels: history.map(h => h.date),
+      datasets: [
+        {
+          label: 'Urea',
+          data: history.map(h => h.urea),
+          borderColor: '#4a9aba',
+          backgroundColor: 'rgba(74,154,186,0.08)',
+          borderWidth: 2.5,
+          pointBackgroundColor: '#4a9aba',
+          pointRadius: 5, pointHoverRadius: 7,
+          tension: 0.4, fill: true,
+        },
+        {
+          label: 'Glucose',
+          data: history.map(h => h.glucose),
+          borderColor: '#3ecf8e',
+          backgroundColor: 'rgba(62,207,142,0.07)',
+          borderWidth: 2.5,
+          pointBackgroundColor: '#3ecf8e',
+          pointRadius: 5, pointHoverRadius: 7,
+          tension: 0.4, fill: true,
         }
-      }
+      ]
     },
-    scales: {
-      x: {
-        grid: { color: 'rgba(26,58,92,0.06)' },
-        ticks: { color: '#6b8cae', font: { size: 11 } }
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0d2238',
+          titleColor: '#7eb8d4',
+          bodyColor: '#cde4f0',
+          padding: 12,
+          cornerRadius: 8,
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} mg/dL` }
+        }
       },
-      y: {
-        grid: { color: 'rgba(26,58,92,0.06)' },
-        ticks: { color: '#6b8cae', font: { size: 11 } },
-        suggestedMin: 0,
+      scales: {
+        x: { grid: { color: 'rgba(26,58,92,0.06)' }, ticks: { color: '#6b8cae', font: { size: 11 } } },
+        y: { grid: { color: 'rgba(26,58,92,0.06)' }, ticks: { color: '#6b8cae', font: { size: 11 } }, suggestedMin: 0 }
       }
     }
   }
-});
+);
 
 function refreshChart() {
-  trendChart.data.labels = chartLabels();
-  trendChart.data.datasets[0].data = chartUrea();
-  trendChart.data.datasets[1].data = chartGlucose();
+  trendChart.data.labels            = history.map(h => h.date);
+  trendChart.data.datasets[0].data  = history.map(h => h.urea);
+  trendChart.data.datasets[1].data  = history.map(h => h.glucose);
   trendChart.update();
 }
 
+// ── Health scoring ────────────────────────────────────────────────
 function calcHealth(urea, glucose) {
-  const ureaIdealMid = 13.5;
-  const glucoseIdealMid = 85;
-  const ureaScore = Math.max(0, 100 - Math.abs(urea - ureaIdealMid) * 4);
-  const glucoseScore = Math.max(0, 100 - Math.abs(glucose - glucoseIdealMid) * 0.8);
-  return Math.round((ureaScore * 0.6 + glucoseScore * 0.4));
+  const ureaScore    = Math.max(0, 100 - Math.abs(urea    - 13.5) * 4);
+  const glucoseScore = Math.max(0, 100 - Math.abs(glucose - 85)   * 0.8);
+  return Math.round(ureaScore * 0.6 + glucoseScore * 0.4);
 }
 
 function healthLabel(score) {
-  if (score >= 75) return { text: 'Good', cls: 'level-good', color: '#3ecf8e' };
+  if (score >= 75) return { text: 'Good',     cls: 'level-good',     color: '#3ecf8e' };
   if (score >= 50) return { text: 'Moderate', cls: 'level-moderate', color: '#f6c545' };
-  return { text: 'Poor', cls: 'level-poor', color: '#e05f5f' };
+  return               { text: 'Poor',     cls: 'level-poor',     color: '#e05f5f' };
 }
 
+// ── UI: update metric cards ───────────────────────────────────────
 function updateMetrics(urea, glucose) {
   const health = calcHealth(urea, glucose);
-  const label = healthLabel(health);
+  const label  = healthLabel(health);
 
-  document.getElementById('ureaValue').innerHTML = `${urea}<span class="metric-unit"> mg/dL</span>`;
+  document.getElementById('ureaValue').innerHTML    = `${urea}<span class="metric-unit"> mg/dL</span>`;
   document.getElementById('glucoseValue').innerHTML = `${glucose}<span class="metric-unit"> mg/dL</span>`;
 
   const ureaOk = urea >= 7 && urea <= 20;
-  document.getElementById('ureaSub').textContent = ureaOk ? '✓ Within normal range' : '⚠ Outside normal range';
-  document.getElementById('ureaSub').style.color = ureaOk ? '#1da870' : '#e05f5f';
+  const ureaSub = document.getElementById('ureaSub');
+  ureaSub.textContent = ureaOk ? '✓ Within normal range' : '⚠ Outside normal range';
+  ureaSub.style.color = ureaOk ? '#1da870' : '#e05f5f';
 
   const glucOk = glucose >= 70 && glucose <= 100;
-  document.getElementById('glucoseSub').textContent = glucOk ? '✓ Within normal range' : '⚠ Outside normal range';
-  document.getElementById('glucoseSub').style.color = glucOk ? '#1da870' : '#e05f5f';
+  const glucSub = document.getElementById('glucoseSub');
+  glucSub.textContent = glucOk ? '✓ Within normal range' : '⚠ Outside normal range';
+  glucSub.style.color = glucOk ? '#1da870' : '#e05f5f';
 
   const arc = document.getElementById('gaugeArc');
-  const totalLen = 126;
-  const offset = totalLen - (health / 100) * totalLen;
+  const offset = 126 - (health / 100) * 126;
   arc.style.transition = 'stroke-dashoffset 0.8s ease, stroke 0.5s';
   arc.setAttribute('stroke-dashoffset', offset);
   arc.setAttribute('stroke', label.color);
@@ -688,29 +665,27 @@ function updateMetrics(urea, glucose) {
 
   const tag = document.getElementById('healthTag');
   tag.textContent = label.text;
-  tag.className = `health-level-tag ${label.cls}`;
+  tag.className   = `health-level-tag ${label.cls}`;
 
   const factors = [];
-  if (urea < 7) factors.push('Low urea — possible liver issue');
-  else if (urea > 20) factors.push('High urea — possible kidney stress');
-  else factors.push('Urea normal');
-
-  if (glucose < 70) factors.push('Low glucose — monitor closely');
+  if      (urea < 7)    factors.push('Low urea — possible liver issue');
+  else if (urea > 20)   factors.push('High urea — possible kidney stress');
+  else                  factors.push('Urea normal');
+  if      (glucose < 70)  factors.push('Low glucose — monitor closely');
   else if (glucose > 100) factors.push('Elevated glucose — watch diet');
-  else factors.push('Glucose normal');
-
+  else                    factors.push('Glucose normal');
   document.getElementById('healthFactors').innerHTML = factors.join('<br>');
 
   return health;
 }
 
+// ── UI: history table ─────────────────────────────────────────────
 function refreshTable() {
   const tbody = document.getElementById('historyBody');
-  if (history.length === 0) {
+  if (!history.length) {
     tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1.5rem 0;font-family:var(--mono);font-size:0.8rem;">No test data yet.</td></tr>`;
     return;
   }
-
   tbody.innerHTML = [...history].reverse().map(row => {
     const lbl = healthLabel(row.health);
     return `<tr>
@@ -725,109 +700,155 @@ function refreshTable() {
 
 refreshTable();
 
-const btnConnect = document.getElementById('btnConnect');
-const btnRunTest = document.getElementById('btnRunTest');
+// ── DOM refs ──────────────────────────────────────────────────────
+const btnConnect       = document.getElementById('btnConnect');
+const btnRunTest       = document.getElementById('btnRunTest');
 const connectingOverlay = document.getElementById('connectingOverlay');
-const statusDot = document.getElementById('statusDot');
-const statusText = document.getElementById('statusText');
+const connectingText   = document.getElementById('connectingText');
+const statusDot        = document.getElementById('statusDot');
+const statusText       = document.getElementById('statusText');
 
-btnConnect.addEventListener('click', async () => {
-  await attemptConnect();
-});
-
+// ── BLE: send a command to the ESP32 ─────────────────────────────
 async function sendBleCommand(command) {
-  if (!commandCharacteristic) throw new Error('Command characteristic not available');
-  const encoder = new TextEncoder();
-  await commandCharacteristic.writeValue(encoder.encode(command + '\n'));
+  if (!rxCharacteristic) throw new Error('Not connected — RX characteristic unavailable');
+  const encoded = new TextEncoder().encode(command + '\n');
+  await rxCharacteristic.writeValue(encoded);
+  console.log('BLE TX:', command);
 }
+
+// ── BLE: connect ──────────────────────────────────────────────────
+btnConnect.addEventListener('click', attemptConnect);
 
 async function attemptConnect() {
   if (!navigator.bluetooth) {
-    toast('Web Bluetooth is not supported in this browser.', '#e05f5f');
+    toast('Web Bluetooth is not supported in this browser.\nUse Chrome or Edge on desktop/Android.', '#e05f5f');
     return;
   }
 
   connectingOverlay.classList.add('active');
+  connectingText.textContent = 'Opening Bluetooth picker…';
 
   try {
-    console.log('Requesting BLE device...');
+    console.log('Requesting BLE device by name:', BLE_DEVICE_NAME);
+
+    // ── KEY FIX: filter by device NAME, not service UUID ──────────
+    // Filtering by services requires the ESP32 to include the full
+    // 128-bit UUID in its advertising packet, which it often doesn't.
+    // Filtering by name is much more reliable.
     bleDevice = await navigator.bluetooth.requestDevice({
-      filters: [{ services: [BLE_SERVICE_UUID] }],
+      filters: [{ name: BLE_DEVICE_NAME }],
       optionalServices: [BLE_SERVICE_UUID]
     });
 
     bleDevice.addEventListener('gattserverdisconnected', handleDisconnect);
 
-    console.log('Connecting to GATT...');
+    connectingText.textContent = 'Connecting to GATT server…';
+    console.log('Connecting GATT…');
     bleServer = await bleDevice.gatt.connect();
 
-    console.log('Getting service...');
+    connectingText.textContent = 'Discovering services…';
+    console.log('Getting primary service…');
     bleService = await bleServer.getPrimaryService(BLE_SERVICE_UUID);
 
-    console.log('Getting notify characteristic...');
-    dataCharacteristic = await bleService.getCharacteristic(BLE_DATA_CHAR_UUID);
+    console.log('Getting TX characteristic (notify)…');
+    txCharacteristic = await bleService.getCharacteristic(BLE_TX_CHAR_UUID);
 
-    console.log('Getting write characteristic...');
-    commandCharacteristic = await bleService.getCharacteristic(BLE_COMMAND_CHAR_UUID);
+    console.log('Getting RX characteristic (write)…');
+    rxCharacteristic = await bleService.getCharacteristic(BLE_RX_CHAR_UUID);
 
-    console.log('Starting notifications...');
-    await dataCharacteristic.startNotifications();
-    dataCharacteristic.addEventListener('characteristicvaluechanged', handleDataNotification);
+    connectingText.textContent = 'Subscribing to notifications…';
+    console.log('Starting notifications…');
+    await txCharacteristic.startNotifications();
+    txCharacteristic.addEventListener('characteristicvaluechanged', handleNotification);
 
     connectingOverlay.classList.remove('active');
     setConnected(true);
-    toast('Connected to sensor via Bluetooth', '#3ecf8e');
+    toast('Connected to ' + bleDevice.name, '#3ecf8e');
 
+    // Request latest data immediately after connecting
+    receiveBuffer = '';
     await sendBleCommand('GET /data');
-  } catch (e) {
+
+  } catch (err) {
     connectingOverlay.classList.remove('active');
-    console.error('Bluetooth error:', e);
+    console.error('BLE error:', err);
+
+    // User cancelled the picker — don't show an error toast
+    if (err.name === 'NotFoundError') {
+      toast('No device selected.', '#f6c545');
+    } else {
+      toast('Bluetooth failed: ' + (err.message || err.name), '#e05f5f');
+    }
     setConnected(false);
-    toast(`Bluetooth failed: ${e.message || 'Unknown error'}`, '#e05f5f');
   }
 }
 
+// ── BLE: disconnection handler ────────────────────────────────────
 function handleDisconnect() {
+  console.warn('BLE disconnected');
   setConnected(false);
+  txCharacteristic = null;
+  rxCharacteristic = null;
+  receiveBuffer    = '';
   toast('Sensor disconnected.', '#e05f5f');
 }
 
+// ── BLE: update UI connection state ──────────────────────────────
 function setConnected(state) {
   connected = state;
-  statusDot.className = 'dot' + (state ? '' : ' disconnected');
+  statusDot.className    = 'dot' + (state ? '' : ' disconnected');
   statusText.textContent = state ? (bleDevice?.name || 'BLE connected') : 'Not connected';
   btnConnect.textContent = state ? 'Reconnect' : 'Connect to Sensor';
-  btnRunTest.disabled = !state;
+  btnRunTest.disabled    = !state;
 }
 
-function handleDataNotification(event) {
-  parseIncomingValue(event.target.value);
+// ── BLE: receive & buffer incoming data ──────────────────────────
+// BLE packets can be split across multiple notifications (MTU ~20 bytes).
+// We accumulate into a buffer and process complete newline-delimited lines.
+function handleNotification(event) {
+  const chunk = new TextDecoder('utf-8').decode(event.target.value.buffer);
+  receiveBuffer += chunk;
+  console.log('BLE RX chunk:', JSON.stringify(chunk));
+
+  let newlineIdx;
+  while ((newlineIdx = receiveBuffer.indexOf('\n')) >= 0) {
+    const line = receiveBuffer.substring(0, newlineIdx).trim();
+    receiveBuffer = receiveBuffer.substring(newlineIdx + 1);
+    if (line.length > 0) processLine(line);
+  }
 }
 
-function parseIncomingValue(dataView) {
+// ── BLE: process a complete line from the device ─────────────────
+function processLine(line) {
+  console.log('BLE RX line:', line);
+
+  // Skip raw CSV header
+  if (line.startsWith('voltage_V')) return;
+
   try {
-    const decoder = new TextDecoder('utf-8');
-    const raw = decoder.decode(dataView.buffer).trim();
-    console.log('BLE RX:', raw);
+    const data = JSON.parse(line);
 
-    const data = JSON.parse(raw);
+    if (data.error) {
+      toast('Device error: ' + data.error, '#e05f5f');
+      return;
+    }
+
     if (data.urea !== undefined && data.glucose !== undefined) {
       ingestReading(data);
     }
   } catch (err) {
-    console.error('Failed to parse BLE data:', err);
+    // Non-JSON line (e.g. raw CSV row) — ignore silently
+    console.log('Non-JSON line (ignored):', line);
   }
 }
 
+// ── Ingest a reading into the dashboard ──────────────────────────
 function ingestReading(data) {
-  const rawUrea = Number(data.urea ?? data.urea_mgdl ?? 0);
-  const rawGlucose = Number(data.glucose ?? data.glucose_mgdl ?? 0);
+  const urea    = parseFloat(Number(data.urea).toFixed(1));
+  const glucose = parseFloat(Number(data.glucose).toFixed(1));
+  const health  = updateMetrics(urea, glucose);
 
-  const urea = parseFloat(rawUrea.toFixed(1));
-  const glucose = parseFloat(rawGlucose.toFixed(1));
-  const health = updateMetrics(urea, glucose);
-
-  const now = new Date();
+  const now     = new Date();
   const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   document.getElementById('headerLastTest').textContent =
     dateStr + ' ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -839,31 +860,41 @@ function ingestReading(data) {
   refreshTable();
 }
 
+// ── Run Test button ───────────────────────────────────────────────
 btnRunTest.addEventListener('click', async () => {
-  if (!connected || !commandCharacteristic) return;
+  if (!connected || !rxCharacteristic) return;
 
   btnRunTest.disabled = true;
-  btnRunTest.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> Running…`;
+  btnRunTest.innerHTML = `
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg> Running…`;
   toast('Test initiated — collecting sample…', '#7eb8d4');
 
   try {
     await sendBleCommand('POST /run');
-    toast('Run command sent.', '#7eb8d4');
   } catch (err) {
     console.error(err);
-    toast(`Failed to send run command: ${err.message || 'Unknown error'}`, '#e05f5f');
+    toast('Failed to send run command: ' + (err.message || 'Unknown error'), '#e05f5f');
   } finally {
+    // Re-enable after a delay (firmware scan takes ~2–5 s)
     setTimeout(() => {
-      btnRunTest.disabled = !connected;
-      btnRunTest.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Run New Test`;
-    }, 1500);
+      if (connected) {
+        btnRunTest.disabled = false;
+        btnRunTest.innerHTML = `
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg> Run New Test`;
+      }
+    }, 5000);
   }
 });
 
+// ── Toast helper ──────────────────────────────────────────────────
 let toastTimer;
 function toast(msg, accent = '#3ecf8e') {
   const el = document.getElementById('toast');
-  el.textContent = msg;
+  el.textContent       = msg;
   el.style.borderLeftColor = accent;
   el.classList.add('show');
   clearTimeout(toastTimer);
