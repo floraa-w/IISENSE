@@ -1,21 +1,27 @@
 /*
- * Sense — Combined Potentiostat + BLE Server for ESP32-S3
+ * Sense — Potentiostat + BLE Server for ESP32-S3
  * ────────────────────────────────────────────────────────────────
  * Pin mapping:
  *   GPIO1   (PWM)   → DAC-like output to potentiostat circuit
- *   GPIO34  (ADC)   → Current measurement (replaces A1)
- *   GPIO35  (ADC)   → Voltage readback    (replaces A2)
+ *   GPIO34  (ADC)   → Current measurement
+ *   GPIO35  (ADC)   → Voltage readback
  *
- * NOTE:
- * - ESP32-S3 does not support BluetoothSerial (Classic BT SPP),
- *   so this version uses BLE instead.
- * - ESP32-S3 also does not use dacWrite() like original ESP32,
- *   so PWM is used instead for analog-like output.
+ * BLE commands (sent as text lines ending in \n):
+ *   POST /ca    → run Chronoamperometry
+ *                 streams every data point live as:
+ *                   {"i":0,"t":0.204,"c":1.23}\n
+ *                 then sends summary JSON when complete:
+ *                   {"status":"ok","type":"ca","points":50,...}\n
+ *   POST /abort → abort a running scan mid-way
  *
- * BLE commands (same routes, sent as text lines ending in \n):
- *   GET /data
- *   POST /run
- *   GET /raw
+ * Serial monitor output during scan:
+ *   [CA] i=0  t=0.204s  current=1.230 uA  (phase=eq)
+ *   [CA] i=1  t=0.408s  current=1.245 uA  (phase=eq)
+ *   ...
+ *   [CA] step voltage applied
+ *   [CA] i=5  t=2.204s  current=3.120 uA  (phase=meas)
+ *   ...
+ *   [CA] done  points=50  peak=4.21uA  final=2.87uA
  * ────────────────────────────────────────────────────────────────
  */
 
@@ -28,115 +34,64 @@
 // ── BLE settings ─────────────────────────────────────────────────
 const char* BT_DEVICE_NAME = "Sense-ESP32";
 
-#define SERVICE_UUID           "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
-#define CHARACTERISTIC_UUID_RX "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
-#define CHARACTERISTIC_UUID_TX "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
+#define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
 BLECharacteristic* pTxCharacteristic = nullptr;
-bool deviceConnected = false;
+bool   deviceConnected  = false;
 String bleCommandBuffer = "";
 
 // ── Pin definitions ──────────────────────────────────────────────
-#define DAC_PIN     1     // PWM-capable pin on XIAO ESP32S3
-#define CURRENT_PIN 34    // ADC - current measurement (was A1)
-#define VOLTAGE_PIN 35    // ADC - voltage readback    (was A2)
+#define DAC_PIN     A1
+#define CURRENT_PIN A0
+#define VOLTAGE_PIN A2
 
-// ── Helper: PWM output instead of dacWrite() ────────────────────
+// ── PWM output ───────────────────────────────────────────────────
 void dacOut(int val10bit) {
-  int pwm = constrain(val10bit, 0, 1023);
-  ledcWrite(DAC_PIN, pwm);
+  ledcWrite(DAC_PIN, constrain(val10bit, 0, 1023));
 }
 
-// ── Potentiostat parameters (same as original) ───────────────────
-int dacVolt = 0;
-float temp = 0;
-int CycleNumber = 1;
-int HalfCycle = 0;
-bool bAborted = false;
-float Veq = 0;
-int V_eq = 512 + Veq * 312;
-float teq = 0;
-unsigned long myTime, myTime2, myTime3;
-int EAppplyAfter = 0;
-float Vafter = 0;
-int V_after = 512 + Vafter * 312;
-int CATime = 10;
-int CADataPoints = 10;
-unsigned long CAStartTime, CATotalTime, MyCAPointWaitTime;
-float CAIData[1000];
-float CAtData[1000];
-unsigned long CAPointNo;
+// ── CA parameters  (match original 'P' command fields) ───────────
+float Veq          = 0.00;  // equilibration voltage (V)
+int   teq          = 2;     // equilibration time (s)   — int like original
+float Vstart       = 0.00;  // step voltage = V_start after equilibration
+int   CATime       = 10;    // measurement duration (s)
+int   CADataPoints = 50;    // total points across BOTH phases
 
-float StepE = 2;
-int i_StepE = 2;
-float PulseAmplitude = 10;
-int i_PulseAmplitude = 10;
-unsigned long i_PulsePeriod = 200;
-unsigned long i_PulseWidth = 50;
-unsigned long i_SamplingPeriod = 2;
-int HalfCycle_DPV = 0;
-int NoEReadBack = 0;
+// Derived DAC integers (recomputed before each scan)
+int V_eq    = 0;
+int V_start = 0;
 
-float current_base = 0;
-float current = 0;
-float volt = 0;
+// ── CA storage ───────────────────────────────────────────────────
+#define CA_MAX_POINTS 1000
+float         CAIData[CA_MAX_POINTS];   // current (µA-scale)
+float         CAtData[CA_MAX_POINTS];   // time (s from CAStartTime)
+unsigned long CAPointNo      = 0;       // total points collected so far
+bool          caReady        = false;
+bool          caMeasuring    = false;
+bool          bAborted       = false;
 
-float Vstart = -1.20;
-float Vstop  = +1.00;
-float Srate  = 0.100;
+// Summary values computed after scan
+float caPeakCurrent  = 0.0;
+float caFinalCurrent = 0.0;
 
-int V_start = 512 + Vstart * 312;
-int V_stop  = 512 + Vstop  * 312;
-int Cycle_Number = 1;
-int t = 0;
-
-// ── Peak detection & calibration ─────────────────────────────────
-const float UREA_PEAK_MIN     = +0.10;
-const float UREA_PEAK_MAX     = +0.35;
-const float GLUCOSE_PEAK_MIN  = +0.40;
-const float GLUCOSE_PEAK_MAX  = +0.70;
-
-// Calibration: concentration (mg/dL) = slope * peakCurrent + intercept
-const float UREA_SLOPE        = 8.50;
-const float UREA_INTERCEPT    = 2.00;
-const float GLUCOSE_SLOPE     = 2.80;
-const float GLUCOSE_INTERCEPT = 10.00;
-
-// ── DPV scan storage ─────────────────────────────────────────────
-struct DataPoint {
-  float voltage;
-  float current;
-};
-
-DataPoint dpvData[2000];
-int dpvCount = 0;
-float lastUrea    = 0;
-float lastGlucose = 0;
-bool measurementReady = false;
-bool measuring = false;
+// ── Timing ───────────────────────────────────────────────────────
+unsigned long CAStartTime;
+unsigned long CATotalTime;       // (teq + CATime) * 1000  ms
+unsigned long MyCAPointWaitTime;
 
 // ── BLE helpers ──────────────────────────────────────────────────
 void btSendLine(const String& s) {
   if (deviceConnected && pTxCharacteristic) {
     pTxCharacteristic->setValue((s + "\n").c_str());
     pTxCharacteristic->notify();
-    delay(5);
-  }
-}
-
-void btSend(const String& s) {
-  if (deviceConnected && pTxCharacteristic) {
-    pTxCharacteristic->setValue(s.c_str());
-    pTxCharacteristic->notify();
-    delay(5);
+    delay(5);   // give the stack a moment between notifications
   }
 }
 
 class ServerCallbacks : public BLEServerCallbacks {
-  void onConnect(BLEServer* pServer) override {
-    deviceConnected = true;
-  }
-
+  void onConnect(BLEServer* pServer) override    { deviceConnected = true; }
   void onDisconnect(BLEServer* pServer) override {
     deviceConnected = false;
     BLEDevice::startAdvertising();
@@ -146,573 +101,199 @@ class ServerCallbacks : public BLEServerCallbacks {
 class RXCallbacks : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic* pCharacteristic) override {
     String rx = pCharacteristic->getValue().c_str();
-    if (rx.length() > 0) {
-      bleCommandBuffer += rx;
-    }
+    if (rx.length() > 0) bleCommandBuffer += rx;
   }
 };
 
-// ── Find peak current in a voltage window ────────────────────────
-float findPeak(float vMin, float vMax) {
-  float peak = -9999;
-  for (int i = 0; i < dpvCount; i++) {
-    if (dpvData[i].voltage >= vMin && dpvData[i].voltage <= vMax) {
-      if (dpvData[i].current > peak) peak = dpvData[i].current;
-    }
-  }
-  return (peak == -9999) ? 0 : peak;
+// ── Stream one data point over BLE + Serial ───────────────────────
+//   Format: {"i":N,"t":T.TTT,"c":C.CCC}
+//   i = global point index (0-based, never resets mid-scan)
+//   t = seconds since CAStartTime
+//   c = current in µA-scale
+//   phase = "eq" or "meas" (Serial only, keeps BLE payload small)
+void emitPoint(unsigned long idx, float t, float current, const char* phase) {
+  // ── Serial ─────────────────────────────────────────────────────
+  Serial.print("[CA] i=");     Serial.print(idx);
+  Serial.print("  t=");        Serial.print(t, 3);  Serial.print("s");
+  Serial.print("  current=");  Serial.print(current, 3); Serial.print(" uA");
+  Serial.print("  (phase=");   Serial.print(phase); Serial.println(")");
+
+  // ── BLE ────────────────────────────────────────────────────────
+  // Use a compact JSON so it fits well within the ~20-byte MTU
+  // (this is ~30 chars; BLE stack will fragment automatically,
+  //  and the browser reassembles via the newline-buffer)
+  String msg = "{\"i\":";
+  msg += idx;
+  msg += ",\"t\":";
+  msg += String(t, 3);
+  msg += ",\"c\":";
+  msg += String(current, 3);
+  msg += "}";
+  btSendLine(msg);
 }
 
-float peakToConc(float peak, float slope, float intercept) {
-  return max(0.0f, slope * peak + intercept);
-}
+// ── Chronoamperometry — faithful to original two-phase logic ─────
+//
+// Phase 1 (equilibration):  dacOut(V_eq), collect points 0..(n_eq-1)
+//                            over teq seconds
+// Phase 2 (measurement):    dacOut(V_start), collect points n_eq..(CADataPoints-1)
+//                            over CATime seconds
+//
+// Both phases share a single CAStartTime origin and CAPointNo counter,
+// exactly matching the original code.  Points are spaced evenly across
+// CATotalTime = (teq + CATime) seconds.
+//
+void runCA() {
+  caMeasuring = true;
+  caReady     = false;
+  bAborted    = false;
+  CAPointNo   = 0;
 
-// ── Run a DPV measurement and extract concentrations ─────────────
-void runDPV() {
-  measuring = true;
-  dpvCount  = 0;
+  // Recompute DAC integers from float parameters
+  V_eq    = 512 + (int)(Veq    * 312);
+  V_start = 512 + (int)(Vstart * 312);
 
-  // ── Set DPV parameters ────────────────────────────────────────
-  Vstart = -0.20;
-  Vstop = +0.80;
-  V_start = 512 + Vstart * 312;
-  V_stop  = 512 + Vstop  * 312;
-  Cycle_Number = 1;
-  Srate = 0.100;
-  Veq = 0.00;
-  teq = 2;
-  V_eq = 512 + Veq * 312;
-  Vafter = 0.00;
-  V_after = 512 + Vafter * 312;
-  EAppplyAfter = 0;
-  HalfCycle_DPV = 1;
-  NoEReadBack = 1;
-  StepE = 5;
-  i_StepE = (StepE / 3300 * 1024) + 0.5;
-  PulseAmplitude = 25;
-  i_PulseAmplitude = (PulseAmplitude / 3300 * 1024) + 0.5;
-  i_PulsePeriod    = 200;
-  i_PulseWidth     = 50;
-  i_SamplingPeriod = 2;
+  CATotalTime = (unsigned long)((teq + CATime) * 1000);  // ms
 
-  // ── Equilibration ─────────────────────────────────────────────
+  caPeakCurrent = -9999.0;
+
+  // ── Apply equilibration voltage ──────────────────────────────
   dacOut(V_eq);
-  myTime = millis() + teq * 1000;
-  while (millis() < myTime) delay(1);
+  CAStartTime = millis();
+  unsigned long phaseEndTime = CAStartTime + (unsigned long)(teq * 1000);
 
-  // ── Forward DPV scan ──────────────────────────────────────────
-  for (dacVolt = V_start; dacVolt <= V_stop; dacVolt = dacVolt + i_StepE) {
-    if (bAborted) break;
+  Serial.println("[CA] starting — equilibration phase");
 
-    dacOut(dacVolt);
+  // ── Phase 1: equilibration ────────────────────────────────────
+  // Collect data points while millis() < CAStartTime + teq*1000.
+  // CAPointNo increments first (matching original), then we wait
+  // for the scheduled sample time before reading the ADC.
+  while ((millis() < phaseEndTime) && !bAborted) {
+    delay(1);
+    CAPointNo++;
 
-    myTime = millis() + i_PulsePeriod - i_PulseWidth - i_SamplingPeriod;
-    while (millis() < myTime) delay(1);
+    // Check for abort over BLE
+    if (bleCommandBuffer.indexOf("POST /abort") >= 0) bAborted = true;
 
-    current_base = analogRead(CURRENT_PIN) * 3.3 / 4096;
+    MyCAPointWaitTime = CAStartTime + CAPointNo * CATotalTime / CADataPoints;
+    while ((millis() < MyCAPointWaitTime) && !bAborted) delay(1);
 
-    myTime += i_SamplingPeriod;
-    while (millis() < myTime) delay(1);
+    if (!bAborted && CAPointNo < CA_MAX_POINTS) {
+      float raw     = analogRead(CURRENT_PIN) * 3.3 / 4096;
+      float current = 100.0 * (raw - 1.65);
 
-    dacOut(dacVolt + i_PulseAmplitude);
+      CAtData[CAPointNo] = (millis() - CAStartTime) / 1000.0;
+      CAIData[CAPointNo] = current;
 
-    myTime += i_PulseWidth - i_SamplingPeriod;
-    while (millis() < myTime) delay(1);
+      emitPoint(CAPointNo, CAtData[CAPointNo], current, "eq");
 
-    float cur = analogRead(CURRENT_PIN) * 3.3 / 4096;
-    float cur_final = 100 * (cur - current_base);
-
-    float v = (float)(dacVolt - 512) / 1024 * 3.3;
-
-    if (dpvCount < 2000) {
-      dpvData[dpvCount++] = {v, cur_final};
+      if (current > caPeakCurrent) caPeakCurrent = current;
     }
-
-    myTime += i_SamplingPeriod;
-    while (millis() < myTime) delay(1);
   }
 
-  // ── Extract concentrations ────────────────────────────────────
-  float ureaPeak    = findPeak(UREA_PEAK_MIN, UREA_PEAK_MAX);
-  float glucosePeak = findPeak(GLUCOSE_PEAK_MIN, GLUCOSE_PEAK_MAX);
+  // ── Apply step voltage ────────────────────────────────────────
+  if (!bAborted) {
+    dacOut(V_start);
+    Serial.println("[CA] step voltage applied — measurement phase");
+  }
 
-  lastUrea    = round(peakToConc(ureaPeak, UREA_SLOPE, UREA_INTERCEPT) * 10) / 10.0;
-  lastGlucose = round(peakToConc(glucosePeak, GLUCOSE_SLOPE, GLUCOSE_INTERCEPT) * 10) / 10.0;
+  // ── Phase 2: measurement ──────────────────────────────────────
+  unsigned long scanEndTime = CAStartTime + CATotalTime;
 
-  measurementReady = true;
-  measuring = false;
+  while ((millis() < scanEndTime) && !bAborted) {
+    delay(1);
+    CAPointNo++;
+
+    if (bleCommandBuffer.indexOf("POST /abort") >= 0) bAborted = true;
+
+    MyCAPointWaitTime = CAStartTime + CAPointNo * CATotalTime / CADataPoints;
+    while ((millis() < MyCAPointWaitTime) && !bAborted) delay(1);
+
+    if (!bAborted && CAPointNo < CA_MAX_POINTS) {
+      float raw     = analogRead(CURRENT_PIN) * 3.3 / 4096;
+      float current = 100.0 * (raw - 1.65);
+
+      CAtData[CAPointNo] = (millis() - CAStartTime) / 1000.0;
+      CAIData[CAPointNo] = current;
+
+      emitPoint(CAPointNo, CAtData[CAPointNo], current, "meas");
+
+      if (current > caPeakCurrent) caPeakCurrent = current;
+    }
+  }
+
+  // ── Return to equilibration voltage ──────────────────────────
+  dacOut(V_eq);
+
+  caFinalCurrent = (CAPointNo > 0) ? CAIData[CAPointNo] : 0.0;
+
+  Serial.print("[CA] done  points="); Serial.print(CAPointNo);
+  Serial.print("  peak=");  Serial.print(caPeakCurrent, 2);  Serial.print("uA");
+  Serial.print("  final="); Serial.print(caFinalCurrent, 2); Serial.println("uA");
+
+  caReady     = true;
+  caMeasuring = false;
 }
 
-// ── BLE: GET /data ───────────────────────────────────────────────
-void handleData() {
-  if (!measurementReady) runDPV();
-
-  StaticJsonDocument<128> doc;
-  doc["urea"]    = lastUrea;
-  doc["glucose"] = lastGlucose;
-  doc["points"]  = dpvCount;
-
-  String json;
-  serializeJson(doc, json);
-  btSendLine(json);
-}
-
-// ── BLE: POST /run ───────────────────────────────────────────────
-void handleRun() {
-  if (measuring) {
+// ── BLE: POST /ca ─────────────────────────────────────────────────
+void handleCA() {
+  if (caMeasuring) {
     btSendLine("{\"error\":\"busy\"}");
     return;
   }
 
-  runDPV();
+  // Signal scan start to the browser so it can open the live chart
+  btSendLine("{\"type\":\"ca_start\",\"total_points\":" + String(CADataPoints) +
+             ",\"teq\":" + String(teq) +
+             ",\"duration_s\":" + String(CATime) + "}");
 
-  StaticJsonDocument<128> doc;
-  doc["status"]  = "ok";
-  doc["urea"]    = lastUrea;
-  doc["glucose"] = lastGlucose;
+  runCA();
+
+  // Send summary when complete (or aborted)
+  StaticJsonDocument<256> doc;
+  doc["status"]      = bAborted ? "aborted" : "ok";
+  doc["type"]        = "ca";
+  doc["points"]      = (int)CAPointNo;
+  doc["duration_s"]  = CATime;
+  doc["peak_uA"]     = round(caPeakCurrent  * 100) / 100.0;
+  doc["final_uA"]    = round(caFinalCurrent * 100) / 100.0;
 
   String json;
   serializeJson(doc, json);
   btSendLine(json);
 }
 
-// ── BLE: GET /raw ────────────────────────────────────────────────
-void handleRaw() {
-  btSend("voltage_V,current_uA\n");
-  for (int i = 0; i < dpvCount; i++) {
-    btSend(String(dpvData[i].voltage, 4) + "," +
-           String(dpvData[i].current, 4) + "\n");
+// ── BLE: POST /abort ──────────────────────────────────────────────
+void handleAbort() {
+  if (caMeasuring) {
+    bAborted = true;
+    btSendLine("{\"status\":\"aborting\"}");
+  } else {
+    btSendLine("{\"status\":\"not_running\"}");
   }
 }
 
-// ── BLE command handler ──────────────────────────────────────────
+// ── BLE command router ────────────────────────────────────────────
 void handleBluetooth() {
   int newlineIndex;
-
   while ((newlineIndex = bleCommandBuffer.indexOf('\n')) >= 0) {
     String cmd = bleCommandBuffer.substring(0, newlineIndex);
     bleCommandBuffer.remove(0, newlineIndex + 1);
-
     cmd.trim();
     if (cmd.length() == 0) continue;
 
-    if (cmd == "GET /data") {
-      handleData();
-    } else if (cmd == "POST /run") {
-      handleRun();
-    } else if (cmd == "GET /raw") {
-      handleRaw();
-    } else if (cmd == "OPTIONS /data" ||
-               cmd == "OPTIONS /run"  ||
-               cmd == "OPTIONS /raw") {
-      btSendLine("OK");
-    } else {
-      btSendLine("{\"error\":\"unknown_command\"}");
-    }
-  }
-}
-
-// ── Serial command handler (keeps original Arduino serial API) ───
-void handleSerial() {
-  if (Serial.available() > 0) {
-    String myString = Serial.readString();
-    char ch = myString.charAt(0);
-
-    if (ch == 'P') {
-      myString = myString.substring(2, 100);
-      int n;
-      String s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15,s16,s17,s18;
-      #define NEXT(sx) n=myString.indexOf(","); sx=myString.substring(0,n); myString.remove(0,n+1);
-      NEXT(s1) NEXT(s2) NEXT(s3) NEXT(s4) NEXT(s5) NEXT(s6) NEXT(s7) NEXT(s8) NEXT(s9)
-      NEXT(s10) NEXT(s11) NEXT(s12) NEXT(s13) NEXT(s14) NEXT(s15) NEXT(s16) NEXT(s17)
-      n = myString.indexOf(",");
-      s18 = myString.substring(0, n);
-
-      Vstart = s1.toFloat();
-      Vstop = s2.toFloat();
-      V_start = 512 + Vstart * 312;
-      V_stop = 512 + Vstop * 312;
-      Cycle_Number = s3.toInt();
-      Srate = s4.toFloat();
-      Veq = s5.toFloat();
-      teq = s6.toInt();
-      V_eq = 512 + Veq * 312;
-      Vafter = s7.toFloat();
-      V_after = 512 + Vafter * 312;
-      EAppplyAfter = s8.toInt();
-      HalfCycle = s9.toInt();
-      CATime = s10.toInt();
-      CADataPoints = s11.toInt();
-      StepE = s12.toFloat();
-      i_StepE = (StepE / 3300 * 1024) + 0.5;
-      PulseAmplitude = s13.toFloat();
-      i_PulseAmplitude = (PulseAmplitude / 3300 * 1024) + 0.5;
-      i_PulsePeriod = s14.toInt();
-      i_PulseWidth = s15.toInt();
-      i_SamplingPeriod = s16.toInt();
-      HalfCycle_DPV = s17.toInt();
-      NoEReadBack = s18.toInt();
-    }
-
-    if (ch == 'S') {
-      bAborted = false;
-      if (HalfCycle == 1) Cycle_Number = 1;
-
-      dacOut(V_eq);
-      myTime = millis() + teq * 1000;
-      while (millis() < myTime && !bAborted) {
-        delay(1);
-        if (Serial.available()) {
-          myString = Serial.readString();
-          if (myString.charAt(0) == '!') bAborted = true;
-        }
-      }
-
-      for (CycleNumber = 1; CycleNumber <= Cycle_Number; CycleNumber++) {
-        if (!bAborted) {
-          delay(10);
-          Serial.println("*");
-          myTime = millis();
-
-          for (dacVolt = V_start; dacVolt <= V_stop; dacVolt++) {
-            if (!bAborted) {
-              dacOut(dacVolt);
-              float cur = analogRead(CURRENT_PIN) * 3.3 / 4096;
-
-              if (NoEReadBack == 1) {
-                temp = (dacVolt - 512) / 1024.0 * 3.3;
-                Serial.print(temp, 4);
-              } else {
-                float v = analogRead(VOLTAGE_PIN) * (-3.3) / 4096;
-                Serial.print(1 * (v + 1.65), 4);
-              }
-
-              Serial.print(",");
-              Serial.print(100 * (cur - 1.65), 4);
-              Serial.print(",");
-              Serial.println();
-
-              if (Serial.available()) {
-                myString = Serial.readString();
-                if (myString.charAt(0) == '!') bAborted = true;
-              }
-
-              if (!bAborted) {
-                temp = dacVolt - V_start + 1;
-                temp = 1000 * temp / 1024 * 3.3 / Srate;
-                myTime2 = myTime + temp + 0.5;
-                while (millis() < myTime2 && !bAborted) {
-                  delay(1);
-                  if (Serial.available()) {
-                    myString = Serial.readString();
-                    if (myString.charAt(0) == '!') bAborted = true;
-                  }
-                }
-              }
-            }
-          }
-
-          if (!bAborted && HalfCycle == 0) {
-            myTime = millis();
-            for (dacVolt = V_stop; dacVolt >= V_start; dacVolt--) {
-              if (!bAborted) {
-                dacOut(dacVolt);
-                float cur = analogRead(CURRENT_PIN) * 3.3 / 4096;
-
-                if (NoEReadBack == 1) {
-                  temp = (dacVolt - 512) / 1024.0 * 3.3;
-                  Serial.print(temp, 4);
-                } else {
-                  float v = analogRead(VOLTAGE_PIN) * (-3.3) / 4096;
-                  Serial.print(1 * (v + 1.65), 4);
-                }
-
-                Serial.print(",");
-                Serial.print(100 * (cur - 1.65), 4);
-                Serial.print(",");
-                Serial.println();
-
-                if (Serial.available()) {
-                  myString = Serial.readString();
-                  if (myString.charAt(0) == '!') bAborted = true;
-                }
-
-                if (!bAborted) {
-                  temp = V_stop - dacVolt + 1;
-                  temp = 1000 * temp / 1024 * 3.3 / Srate;
-                  myTime2 = myTime + temp + 0.5;
-                  while (millis() < myTime2 && !bAborted) {
-                    delay(1);
-                    if (Serial.available()) {
-                      myString = Serial.readString();
-                      if (myString.charAt(0) == '!') bAborted = true;
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-
-      if (!bAborted && EAppplyAfter == 1) dacOut(V_after);
-      delay(10);
-      Serial.println('@');
-    }
-
-    if (ch == 'C') {
-      bAborted = false;
-      CAPointNo = 0;
-      dacOut(V_eq);
-      CATotalTime = teq + CATime;
-      CAStartTime = millis();
-      myTime = CAStartTime + teq * 1000;
-
-      while (millis() < myTime && !bAborted) {
-        delay(1);
-        CAPointNo++;
-
-        if (Serial.available()) {
-          myString = Serial.readString();
-          if (myString.charAt(0) == '!') bAborted = true;
-        }
-
-        MyCAPointWaitTime = CAStartTime + CAPointNo * (CATotalTime * 1000) / CADataPoints;
-        while (millis() < MyCAPointWaitTime && !bAborted) delay(1);
-
-        if (!bAborted) {
-          float cur = analogRead(CURRENT_PIN) * 3.3 / 4096;
-          CAIData[CAPointNo] = 100 * (cur - 1.65);
-          CAtData[CAPointNo] = (millis() - CAStartTime) / 1000.0;
-        }
-      }
-
-      if (!bAborted) dacOut(V_start);
-      myTime = CAStartTime + CATotalTime * 1000;
-
-      while (millis() < myTime && !bAborted) {
-        delay(1);
-        CAPointNo++;
-
-        if (Serial.available()) {
-          myString = Serial.readString();
-          if (myString.charAt(0) == '!') bAborted = true;
-        }
-
-        MyCAPointWaitTime = CAStartTime + CAPointNo * (CATotalTime * 1000) / CADataPoints;
-        while (millis() < MyCAPointWaitTime && !bAborted) delay(1);
-
-        if (!bAborted) {
-          float cur = analogRead(CURRENT_PIN) * 3.3 / 4096;
-          CAIData[CAPointNo] = 100 * (cur - 1.65);
-          CAtData[CAPointNo] = (millis() - CAStartTime) / 1000.0;
-        }
-      }
-
-      for (int i = 1; i <= (int)CAPointNo; i++) {
-        Serial.print(CAtData[i], 3);
-        Serial.print(",");
-        Serial.print(CAIData[i], 3);
-        Serial.print(",");
-        Serial.println();
-      }
-
-      delay(10);
-      Serial.println("*");
-      delay(10);
-      Serial.println('%');
-    }
-
-    if (ch == 'D') {
-      bAborted = false;
-      if (HalfCycle_DPV == 1) Cycle_Number = 1;
-
-      dacOut(V_eq);
-      myTime = millis() + teq * 1000;
-      while (millis() < myTime && !bAborted) {
-        delay(1);
-        if (Serial.available()) {
-          myString = Serial.readString();
-          if (myString.charAt(0) == '!') bAborted = true;
-        }
-      }
-
-      for (CycleNumber = 1; CycleNumber <= Cycle_Number; CycleNumber++) {
-        if (!bAborted) {
-          delay(10);
-          Serial.println("*");
-
-          for (dacVolt = V_start; dacVolt <= V_stop; dacVolt = dacVolt + i_StepE) {
-            if (!bAborted) {
-              dacOut(dacVolt);
-
-              myTime = millis() + i_PulsePeriod - i_PulseWidth - i_SamplingPeriod;
-              while (millis() < myTime && !bAborted) {
-                delay(1);
-                if (Serial.available()) {
-                  myString = Serial.readString();
-                  if (myString.charAt(0) == '!') bAborted = true;
-                }
-              }
-
-              if (!bAborted) current_base = analogRead(CURRENT_PIN) * 3.3 / 4096;
-
-              if (Serial.available()) {
-                myString = Serial.readString();
-                if (myString.charAt(0) == '!') bAborted = true;
-              }
-
-              myTime += i_SamplingPeriod;
-              while (millis() < myTime && !bAborted) {
-                delay(1);
-                if (Serial.available()) {
-                  myString = Serial.readString();
-                  if (myString.charAt(0) == '!') bAborted = true;
-                }
-              }
-
-              if (!bAborted) {
-                dacOut(dacVolt + i_PulseAmplitude);
-                myTime += i_PulseWidth - i_SamplingPeriod;
-                while (millis() < myTime && !bAborted) {
-                  delay(1);
-                  if (Serial.available()) {
-                    myString = Serial.readString();
-                    if (myString.charAt(0) == '!') bAborted = true;
-                  }
-                }
-              }
-
-              if (!bAborted) {
-                float cur = analogRead(CURRENT_PIN) * 3.3 / 4096;
-                float cur_final = 100 * (cur - current_base);
-
-                if (NoEReadBack == 1) {
-                  temp = (dacVolt - 512) / 1024.0 * 3.3;
-                  Serial.print(temp, 4);
-                } else {
-                  float v = analogRead(VOLTAGE_PIN) * (-3.3) / 4096;
-                  Serial.print(1 * (v + 1.65), 4);
-                }
-
-                Serial.print(",");
-                Serial.print(cur_final);
-                Serial.print(",");
-                Serial.println();
-
-                if (Serial.available()) {
-                  myString = Serial.readString();
-                  if (myString.charAt(0) == '!') bAborted = true;
-                }
-              }
-
-              myTime += i_SamplingPeriod;
-              while (millis() < myTime && !bAborted) {
-                delay(1);
-                if (Serial.available()) {
-                  myString = Serial.readString();
-                  if (myString.charAt(0) == '!') bAborted = true;
-                }
-              }
-            }
-          }
-
-          if (!bAborted && HalfCycle_DPV == 0) {
-            for (dacVolt = V_stop; dacVolt >= V_start; dacVolt = dacVolt - i_StepE) {
-              if (!bAborted) {
-                dacOut(dacVolt);
-
-                myTime = millis() + i_PulsePeriod - i_PulseWidth - i_SamplingPeriod;
-                while (millis() < myTime && !bAborted) {
-                  delay(1);
-                  if (Serial.available()) {
-                    myString = Serial.readString();
-                    if (myString.charAt(0) == '!') bAborted = true;
-                  }
-                }
-
-                if (!bAborted) current_base = analogRead(CURRENT_PIN) * 3.3 / 4096;
-
-                if (Serial.available()) {
-                  myString = Serial.readString();
-                  if (myString.charAt(0) == '!') bAborted = true;
-                }
-
-                myTime += i_SamplingPeriod;
-                while (millis() < myTime && !bAborted) {
-                  delay(1);
-                  if (Serial.available()) {
-                    myString = Serial.readString();
-                    if (myString.charAt(0) == '!') bAborted = true;
-                  }
-                }
-
-                if (!bAborted) {
-                  dacOut(dacVolt - i_PulseAmplitude);
-                  myTime += i_PulseWidth - i_SamplingPeriod;
-                  while (millis() < myTime && !bAborted) {
-                    delay(1);
-                    if (Serial.available()) {
-                      myString = Serial.readString();
-                      if (myString.charAt(0) == '!') bAborted = true;
-                    }
-                  }
-                }
-
-                if (!bAborted) {
-                  float cur = analogRead(CURRENT_PIN) * 3.3 / 4096;
-                  float cur_final = 100 * (cur - current_base);
-
-                  if (NoEReadBack == 1) {
-                    temp = (dacVolt - 512) / 1024.0 * 3.3;
-                    Serial.print(temp, 4);
-                  } else {
-                    float v = analogRead(VOLTAGE_PIN) * (-3.3) / 4096;
-                    Serial.print(1 * (v + 1.65), 4);
-                  }
-
-                  Serial.print(",");
-                  Serial.print(cur_final);
-                  Serial.print(",");
-                  Serial.println();
-
-                  if (Serial.available()) {
-                    myString = Serial.readString();
-                    if (myString.charAt(0) == '!') bAborted = true;
-                  }
-                }
-
-                myTime += i_SamplingPeriod;
-                while (millis() < myTime && !bAborted) {
-                  delay(1);
-                  if (Serial.available()) {
-                    myString = Serial.readString();
-                    if (myString.charAt(0) == '!') bAborted = true;
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-
-      if (!bAborted && EAppplyAfter == 1) dacOut(V_after);
-      delay(10);
-      Serial.println('$');
-    }
-
-    delay(10);
-    Serial.println('#');
+    if      (cmd == "POST /ca")    handleCA();
+    else if (cmd == "POST /abort") handleAbort();
+    else if (cmd.startsWith("OPTIONS")) btSendLine("OK");
+    else    btSendLine("{\"error\":\"unknown_command\"}");
   }
 }
 
 // ── Setup ─────────────────────────────────────────────────────────
 void setup() {
   ledcAttach(DAC_PIN, 20000, 10);
-
   Serial.begin(115200);
-  Serial.println("ESP32-S3 booting...");
-  Serial.println("Serial is working");
+  Serial.println("Sense ESP32-S3 booting...");
   analogReadResolution(12);
 
   BLEDevice::init(BT_DEVICE_NAME);
@@ -739,16 +320,11 @@ void setup() {
   pAdvertising->addServiceUUID(SERVICE_UUID);
   pAdvertising->start();
 
-  Serial.println("BLE started");
-  Serial.println("Device name: Sense-ESP32");
-  Serial.println("Send BLE commands:");
-  Serial.println("GET /data");
-  Serial.println("POST /run");
-  Serial.println("GET /raw");
+  Serial.println("BLE ready — Sense-ESP32");
+  Serial.println("Commands: POST /ca | POST /abort");
 }
 
 // ── Loop ──────────────────────────────────────────────────────────
 void loop() {
   handleBluetooth();
-  handleSerial();
 }
