@@ -15,6 +15,8 @@
       --success: #3ecf8e;
       --warning: #f6c545;
       --danger: #e05f5f;
+      --ca-color: #a78bfa;
+      --ca-dark: #7c3aed;
       --bg: #f0f4f8;
       --surface: #ffffff;
       --surface2: #e8edf3;
@@ -23,414 +25,143 @@
       --mono: 'DM Mono', monospace;
       --sans: 'Sora', sans-serif;
     }
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; }
 
-    body {
-      font-family: var(--sans);
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-    }
-
+    /* Header */
     header {
-      background: var(--navy-dark);
-      padding: 0 2rem;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      height: 64px;
-      position: sticky;
-      top: 0;
-      z-index: 100;
+      background: var(--navy-dark); padding: 0 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px; position: sticky; top: 0; z-index: 100;
       box-shadow: 0 2px 20px rgba(0,0,0,0.25);
     }
-
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      color: white;
-      font-weight: 700;
-      font-size: 1.5rem;
-      letter-spacing: 0.03em;
-    }
-
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 1.5rem;
-    }
-
-    .connection-status {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-family: var(--mono);
-      font-size: 0.75rem;
-      color: var(--accent);
-    }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--success);
-      animation: pulse-dot 2s infinite;
-    }
-
+    .logo { color: white; font-weight: 700; font-size: 1.5rem; letter-spacing: 0.03em; }
+    .header-right { display: flex; align-items: center; gap: 1.5rem; }
+    .last-test { font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .last-test span { color: var(--accent); font-weight: 500; }
+    .connection-status { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 0.75rem; color: var(--accent); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); animation: pulse-dot 2s infinite; }
     .dot.disconnected { background: var(--danger); animation: none; }
-
-    @keyframes pulse-dot {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(0.85); }
-    }
-
-    .last-test {
-      font-family: var(--mono);
-      font-size: 0.72rem;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    .last-test span {
-      color: var(--accent);
-      font-weight: 500;
-    }
-
-    .btn-connect {
-      background: var(--accent2);
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      padding: 0.45rem 1.1rem;
-      font-family: var(--sans);
-      font-size: 0.8rem;
-      font-weight: 600;
-      cursor: pointer;
-      letter-spacing: 0.04em;
-      transition: background 0.2s, transform 0.1s;
-    }
-
+    @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.85)} }
+    .btn-connect { background: var(--accent2); color: #fff; border: none; border-radius: 6px; padding: .45rem 1.1rem; font-family: var(--sans); font-size: .8rem; font-weight: 600; cursor: pointer; letter-spacing: .04em; transition: background .2s, transform .1s; }
     .btn-connect:hover { background: var(--navy-mid); transform: translateY(-1px); }
     .btn-connect:active { transform: translateY(0); }
 
-    main {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 2rem 1.5rem 3rem;
-      display: grid;
-      gap: 1.5rem;
-    }
+    /* Layout */
+    main { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem 3rem; display: grid; gap: 1.5rem; }
 
-    .metrics-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1.3fr;
-      gap: 1.5rem;
-    }
+    /* Card base */
+    .card { background: var(--surface); border-radius: 16px; padding: 1.5rem; box-shadow: 0 2px 16px rgba(26,58,92,.07); position: relative; overflow: hidden; transition: box-shadow .2s, transform .2s; }
+    .card:hover { box-shadow: 0 6px 28px rgba(26,58,92,.13); transform: translateY(-2px); }
+    .card-accent-bar { position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 16px 16px 0 0; }
+    .card-label { font-family: var(--mono); font-size: .7rem; font-weight: 500; text-transform: uppercase; letter-spacing: .12em; color: var(--text-muted); margin-bottom: .75rem; }
 
-    .card {
-      background: var(--surface);
-      border-radius: 16px;
-      padding: 1.5rem;
-      box-shadow: 0 2px 16px rgba(26,58,92,0.07);
-      position: relative;
-      overflow: hidden;
-      transition: box-shadow 0.2s, transform 0.2s;
-    }
+    /* Metrics row */
+    .metrics-row { display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 1.5rem; }
+    .metric-value { font-family: var(--mono); font-size: 2.8rem; font-weight: 300; color: var(--navy); line-height: 1; margin-bottom: .35rem; }
+    .metric-unit { font-size: 1rem; color: var(--text-muted); font-weight: 400; }
+    .metric-sub { font-size: .78rem; color: var(--text-muted); margin-top: .5rem; }
 
-    .card:hover {
-      box-shadow: 0 6px 28px rgba(26,58,92,0.13);
-      transform: translateY(-2px);
-    }
-
-    .card-label {
-      font-family: var(--mono);
-      font-size: 0.7rem;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: var(--text-muted);
-      margin-bottom: 0.75rem;
-    }
-
-    .metric-value {
-      font-family: var(--mono);
-      font-size: 2.8rem;
-      font-weight: 300;
-      color: var(--navy);
-      line-height: 1;
-      margin-bottom: 0.35rem;
-    }
-
-    .metric-unit {
-      font-size: 1rem;
-      color: var(--text-muted);
-      font-weight: 400;
-    }
-
-    .metric-sub {
-      font-size: 0.78rem;
-      color: var(--text-muted);
-      margin-top: 0.5rem;
-    }
-
-    .card-accent-bar {
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 3px;
-      border-radius: 16px 16px 0 0;
-    }
-
-    .health-card {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .health-gauge-wrap {
-      display: flex;
-      align-items: center;
-      gap: 1.25rem;
-      margin-top: 0.5rem;
-    }
-
-    .gauge-svg-wrap {
-      flex-shrink: 0;
-      position: relative;
-      width: 100px;
-      height: 60px;
-    }
-
+    /* Health gauge */
+    .health-card { display: flex; flex-direction: column; }
+    .health-gauge-wrap { display: flex; align-items: center; gap: 1.25rem; margin-top: .5rem; }
+    .gauge-svg-wrap { flex-shrink: 0; position: relative; width: 100px; height: 60px; }
     .gauge-svg { overflow: visible; }
-
-    .gauge-label-inside {
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      font-family: var(--mono);
-      font-size: 1.2rem;
-      font-weight: 500;
-      color: var(--navy);
-      text-align: center;
-      white-space: nowrap;
-    }
-
+    .gauge-label-inside { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 1.2rem; font-weight: 500; color: var(--navy); text-align: center; white-space: nowrap; }
     .health-detail { flex: 1; }
+    .health-level-tag { display: inline-block; padding: .3rem .85rem; border-radius: 20px; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin-bottom: .6rem; }
+    .level-good     { background: rgba(62,207,142,.15); color: #1da870; }
+    .level-moderate { background: rgba(246,197,69,.2);  color: #b8860b; }
+    .level-poor     { background: rgba(224,95,95,.15);  color: #c0392b; }
+    .health-factors { font-size: .75rem; color: var(--text-muted); line-height: 1.6; font-family: var(--mono); }
 
-    .health-level-tag {
-      display: inline-block;
-      padding: 0.3rem 0.85rem;
-      border-radius: 20px;
-      font-size: 0.8rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      margin-bottom: 0.6rem;
-    }
+    /* CA row */
+    .ca-row { display: grid; grid-template-columns: 300px 1fr; gap: 1.5rem; align-items: start; }
 
-    .level-good { background: rgba(62,207,142,0.15); color: #1da870; }
-    .level-moderate { background: rgba(246,197,69,0.2); color: #b8860b; }
-    .level-poor { background: rgba(224,95,95,0.15); color: #c0392b; }
+    .ca-chart-card { background: var(--surface); border-radius: 16px; padding: 1.25rem; box-shadow: 0 2px 16px rgba(26,58,92,.07); position: relative; overflow: hidden; }
+    .ca-chart-inner { position: relative; width: 100%; height: 140px; }
+    .ca-chart-empty { display: flex; align-items: center; justify-content: center; height: 140px; font-family: var(--mono); font-size: .73rem; color: var(--text-muted); text-align: center; line-height: 1.6; }
 
-    .health-factors {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      line-height: 1.6;
-      font-family: var(--mono);
-    }
+    /* Live scan progress bar */
+    .ca-progress-wrap { margin-top: .6rem; display: none; }
+    .ca-progress-wrap.visible { display: block; }
+    .ca-progress-bar { height: 3px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
+    .ca-progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--ca-dark), var(--ca-color)); border-radius: 2px; transition: width .3s ease; }
+    .ca-progress-label { font-family: var(--mono); font-size: .65rem; color: var(--text-muted); margin-top: .3rem; }
 
-    .chart-card {
-      border-radius: 16px;
-      background: var(--surface);
-      padding: 1.5rem;
-      box-shadow: 0 2px 16px rgba(26,58,92,0.07);
-    }
+    .ca-stats-card { background: var(--surface); border-radius: 16px; padding: 1.25rem 1.5rem; box-shadow: 0 2px 16px rgba(26,58,92,.07); position: relative; overflow: hidden; }
+    .ca-stats-header { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; flex-wrap: wrap; margin-bottom: .75rem; }
+    .ca-run-meta { font-family: var(--mono); font-size: .7rem; color: var(--text-muted); }
+    .ca-stats-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: .75rem; }
+    .ca-stat { background: var(--bg); border-radius: 10px; padding: .75rem; text-align: center; }
+    .ca-stat-label { font-family: var(--mono); font-size: .63rem; text-transform: uppercase; letter-spacing: .1em; color: var(--text-muted); margin-bottom: .3rem; }
+    .ca-stat-value { font-family: var(--mono); font-size: 1.3rem; font-weight: 400; color: var(--navy); }
+    .ca-stat-unit  { font-size: .7rem; color: var(--text-muted); }
+    .ca-empty-msg  { font-family: var(--mono); font-size: .78rem; color: var(--text-muted); }
 
-    .chart-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 1.25rem;
-    }
-
-    .chart-title {
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: var(--navy);
-    }
-
-    .chart-legend {
-      display: flex;
-      gap: 1.25rem;
-    }
-
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-family: var(--mono);
-      font-size: 0.72rem;
-      color: var(--text-muted);
-    }
-
+    /* Trend chart */
+    .chart-card { background: var(--surface); border-radius: 16px; padding: 1.5rem; box-shadow: 0 2px 16px rgba(26,58,92,.07); }
+    .chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+    .chart-title { font-size: .95rem; font-weight: 600; color: var(--navy); }
+    .chart-legend { display: flex; gap: 1.25rem; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: .72rem; color: var(--text-muted); }
     .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .chart-wrap { position: relative; width: 100%; height: 220px; }
 
-    .chart-wrap {
-      position: relative;
-      width: 100%;
-      height: 220px;
-    }
-
-    canvas#trendChart { width: 100% !important; height: 100% !important; }
-
-    .history-card {
-      background: var(--surface);
-      border-radius: 16px;
-      padding: 1.5rem;
-      box-shadow: 0 2px 16px rgba(26,58,92,0.07);
-    }
-
-    .history-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 1rem;
-    }
-
-    .section-title {
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: var(--navy);
-    }
-
+    /* History table */
+    .history-card { background: var(--surface); border-radius: 16px; padding: 1.5rem; box-shadow: 0 2px 16px rgba(26,58,92,.07); }
+    .section-title { font-size: .95rem; font-weight: 600; color: var(--navy); margin-bottom: 1rem; }
     table { width: 100%; border-collapse: collapse; }
-
-    thead th {
-      font-family: var(--mono);
-      font-size: 0.68rem;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--text-muted);
-      padding: 0.5rem 0.75rem;
-      text-align: left;
-      border-bottom: 1px solid var(--surface2);
-    }
-
-    tbody td {
-      font-family: var(--mono);
-      font-size: 0.82rem;
-      padding: 0.65rem 0.75rem;
-      border-bottom: 1px solid var(--surface2);
-      color: var(--navy);
-    }
-
+    thead th { font-family: var(--mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .1em; color: var(--text-muted); padding: .5rem .75rem; text-align: left; border-bottom: 1px solid var(--surface2); }
+    tbody td { font-family: var(--mono); font-size: .82rem; padding: .65rem .75rem; border-bottom: 1px solid var(--surface2); color: var(--navy); }
     tbody tr:last-child td { border-bottom: none; }
     tbody tr:hover td { background: var(--bg); }
+    .badge { display: inline-block; padding: .18rem .6rem; border-radius: 12px; font-size: .7rem; font-weight: 700; }
 
-    .badge {
-      display: inline-block;
-      padding: 0.18rem 0.6rem;
-      border-radius: 12px;
-      font-size: 0.7rem;
-      font-weight: 700;
+    /* Abort button only (run button removed) */
+    .run-bar { display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; }
+
+    .btn-abort {
+      background: transparent; color: var(--danger);
+      border: 1.5px solid var(--danger); border-radius: 10px;
+      padding: .9rem 1.8rem; font-family: var(--sans); font-size: .95rem;
+      font-weight: 600; cursor: pointer; display: none; align-items: center; gap: 8px;
+      transition: all .2s;
     }
+    .btn-abort.visible { display: flex; }
+    .btn-abort:hover { background: rgba(224,95,95,.08); }
 
-    .run-test-bar {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 1rem;
+    /* Auto-scan status indicator */
+    .auto-scan-status {
+      display: flex; align-items: center; gap: 10px;
+      font-family: var(--mono); font-size: .8rem; color: var(--text-muted);
+      padding: .9rem 1.8rem; border-radius: 10px;
+      background: var(--surface); border: 1.5px solid var(--surface2);
     }
+    .auto-scan-status.scanning { color: var(--ca-color); border-color: var(--ca-color); }
+    .auto-scan-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); }
+    .auto-scan-status.scanning .auto-scan-dot { background: var(--ca-color); animation: pulse-dot 1.2s infinite; }
 
-    .btn-run {
-      background: linear-gradient(135deg, var(--navy-mid), var(--navy-dark));
-      color: #fff;
-      border: none;
-      border-radius: 10px;
-      padding: 0.85rem 2.5rem;
-      font-family: var(--sans);
-      font-size: 0.95rem;
-      font-weight: 700;
-      cursor: pointer;
-      letter-spacing: 0.05em;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      transition: all 0.2s;
-      box-shadow: 0 4px 18px rgba(26,58,92,0.25);
-    }
-
-    .btn-run:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(26,58,92,0.32); }
-    .btn-run:active { transform: translateY(0); }
-    .btn-run:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-    .btn-run svg { flex-shrink: 0; }
-
-    #toast {
-      position: fixed;
-      bottom: 2rem;
-      right: 2rem;
-      background: var(--navy-dark);
-      color: #fff;
-      padding: 0.85rem 1.4rem;
-      border-radius: 10px;
-      font-family: var(--mono);
-      font-size: 0.82rem;
-      box-shadow: 0 6px 24px rgba(0,0,0,0.25);
-      opacity: 0;
-      transform: translateY(16px);
-      transition: opacity 0.3s, transform 0.3s;
-      pointer-events: none;
-      z-index: 999;
-      border-left: 3px solid var(--success);
-      max-width: 360px;
-    }
-
+    /* Toast */
+    #toast { position: fixed; bottom: 2rem; right: 2rem; background: var(--navy-dark); color: #fff; padding: .85rem 1.4rem; border-radius: 10px; font-family: var(--mono); font-size: .82rem; box-shadow: 0 6px 24px rgba(0,0,0,.25); opacity: 0; transform: translateY(16px); transition: opacity .3s, transform .3s; pointer-events: none; z-index: 999; border-left: 3px solid var(--success); max-width: 360px; }
     #toast.show { opacity: 1; transform: translateY(0); }
 
-    #connectingOverlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(13,34,56,0.7);
-      backdrop-filter: blur(4px);
-      z-index: 200;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      gap: 1.5rem;
-    }
-
+    /* Overlay */
+    #connectingOverlay { display: none; position: fixed; inset: 0; background: rgba(13,34,56,.7); backdrop-filter: blur(4px); z-index: 200; align-items: center; justify-content: center; flex-direction: column; gap: 1.5rem; }
     #connectingOverlay.active { display: flex; }
-
-    .spinner {
-      width: 48px;
-      height: 48px;
-      border: 3px solid rgba(126,184,212,0.3);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.9s linear infinite;
-    }
-
+    .spinner { width: 48px; height: 48px; border: 3px solid rgba(126,184,212,.3); border-top-color: var(--accent); border-radius: 50%; animation: spin .9s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .connecting-text { font-family: var(--mono); color: var(--accent); font-size: .9rem; letter-spacing: .08em; }
 
-    .connecting-text {
-      font-family: var(--mono);
-      color: var(--accent);
-      font-size: 0.9rem;
-      letter-spacing: 0.08em;
-    }
-
+    /* Responsive */
+    @media (max-width: 900px) { .ca-row { grid-template-columns: 1fr; } }
     @media (max-width: 780px) {
       .metrics-row { grid-template-columns: 1fr 1fr; }
       .metrics-row .health-card { grid-column: 1 / -1; }
       .header-right .last-test { display: none; }
+      .ca-stats-grid { grid-template-columns: 1fr 1fr; }
     }
-
-    @media (max-width: 520px) {
-      .metrics-row { grid-template-columns: 1fr; }
-    }
+    @media (max-width: 520px) { .metrics-row { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -448,30 +179,30 @@
 </header>
 
 <main>
+
+  <!-- Urea / Glucose / Health -->
   <div class="metrics-row">
     <div class="card">
-      <div class="card-accent-bar" style="background: linear-gradient(90deg, #4a9aba, #7eb8d4);"></div>
+      <div class="card-accent-bar" style="background:linear-gradient(90deg,#4a9aba,#7eb8d4)"></div>
       <div class="card-label">Urea Concentration</div>
       <div class="metric-value" id="ureaValue">—<span class="metric-unit"> mg/dL</span></div>
       <div class="metric-sub" id="ureaSub">Normal range: 7–20 mg/dL</div>
     </div>
-
     <div class="card">
-      <div class="card-accent-bar" style="background: linear-gradient(90deg, #3ecf8e, #2eb57a);"></div>
+      <div class="card-accent-bar" style="background:linear-gradient(90deg,#3ecf8e,#2eb57a)"></div>
       <div class="card-label">Glucose Concentration</div>
       <div class="metric-value" id="glucoseValue">—<span class="metric-unit"> mg/dL</span></div>
       <div class="metric-sub" id="glucoseSub">Normal fasting: 70–100 mg/dL</div>
     </div>
-
     <div class="card health-card">
-      <div class="card-accent-bar" style="background: linear-gradient(90deg, #1a3a5c, #4a9aba);"></div>
+      <div class="card-accent-bar" style="background:linear-gradient(90deg,#1a3a5c,#4a9aba)"></div>
       <div class="card-label">Kidney Health Level</div>
       <div class="health-gauge-wrap">
         <div class="gauge-svg-wrap">
           <svg class="gauge-svg" viewBox="0 0 100 55" width="100" height="55">
             <path d="M10,50 A40,40 0 0,1 90,50" fill="none" stroke="#e8edf3" stroke-width="9" stroke-linecap="round"/>
-            <path id="gaugeArc" d="M10,50 A40,40 0 0,1 90,50" fill="none" stroke="#3ecf8e" stroke-width="9" stroke-linecap="round"
-              stroke-dasharray="126" stroke-dashoffset="126"/>
+            <path id="gaugeArc" d="M10,50 A40,40 0 0,1 90,50" fill="none" stroke="#3ecf8e" stroke-width="9"
+              stroke-linecap="round" stroke-dasharray="126" stroke-dashoffset="126"/>
           </svg>
           <div class="gauge-label-inside" id="gaugeLabel">—</div>
         </div>
@@ -483,6 +214,46 @@
     </div>
   </div>
 
+  <!-- CA row: live chart + stats -->
+  <div class="ca-row">
+    <div class="ca-chart-card">
+      <div class="card-accent-bar" style="background:linear-gradient(90deg,var(--ca-dark),var(--ca-color))"></div>
+      <div class="card-label" style="margin-bottom:.5rem">Current vs Time</div>
+      <div id="caChartEmpty" class="ca-chart-empty">Run a scan to see<br>the current trace</div>
+      <div class="ca-chart-inner" id="caChartWrap" style="display:none">
+        <canvas id="caChart"></canvas>
+      </div>
+      <div class="ca-progress-wrap" id="caProgressWrap">
+        <div class="ca-progress-bar"><div class="ca-progress-fill" id="caProgressFill"></div></div>
+        <div class="ca-progress-label" id="caProgressLabel">0 / 0 points</div>
+      </div>
+    </div>
+
+    <div class="ca-stats-card">
+      <div class="card-accent-bar" style="background:linear-gradient(90deg,var(--ca-dark),var(--ca-color))"></div>
+      <div class="ca-stats-header">
+        <div class="card-label" style="margin-bottom:0">Chronoamperometry</div>
+        <div class="ca-run-meta" id="caRunMeta">No data</div>
+      </div>
+      <div id="caEmptyMsg" class="ca-empty-msg">Connect sensor and run a scan to see results.</div>
+      <div id="caStatsGrid" class="ca-stats-grid" style="display:none">
+        <div class="ca-stat">
+          <div class="ca-stat-label">Peak</div>
+          <div class="ca-stat-value" id="caPeak">—<span class="ca-stat-unit"> µA</span></div>
+        </div>
+        <div class="ca-stat">
+          <div class="ca-stat-label">Final</div>
+          <div class="ca-stat-value" id="caFinal">—<span class="ca-stat-unit"> µA</span></div>
+        </div>
+        <div class="ca-stat">
+          <div class="ca-stat-label">Points</div>
+          <div class="ca-stat-value" id="caPoints">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Trend chart -->
   <div class="chart-card">
     <div class="chart-header">
       <div class="chart-title">Monthly Trend — Last 4 Weeks</div>
@@ -491,71 +262,64 @@
         <div class="legend-item"><div class="legend-dot" style="background:#3ecf8e"></div> Glucose (mg/dL)</div>
       </div>
     </div>
-    <div class="chart-wrap">
-      <canvas id="trendChart"></canvas>
-    </div>
+    <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
   </div>
 
+  <!-- History table -->
   <div class="history-card">
-    <div class="history-header">
-      <div class="section-title">Test History</div>
-    </div>
+    <div class="section-title">Test History</div>
     <table>
       <thead>
-        <tr>
-          <th>Date</th>
-          <th>Urea (mg/dL)</th>
-          <th>Glucose (mg/dL)</th>
-          <th>Kidney Health</th>
-          <th>Status</th>
-        </tr>
+        <tr><th>Date</th><th>Urea (mg/dL)</th><th>Glucose (mg/dL)</th><th>Kidney Health</th><th>Status</th></tr>
       </thead>
       <tbody id="historyBody">
-        <tr>
-          <td colspan="5" style="text-align:center;color:var(--text-muted);padding:1.5rem 0;font-family:var(--mono);font-size:0.8rem;">
-            No test data yet. Connect your sensor to begin.
-          </td>
-        </tr>
+        <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1.5rem 0;font-family:var(--mono);font-size:.8rem;">No test data yet. Connect your sensor to begin.</td></tr>
       </tbody>
     </table>
   </div>
 
-  <div class="run-test-bar">
-    <button class="btn-run" id="btnRunTest" disabled>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+  <!-- Abort button + auto-scan status -->
+  <div class="run-bar">
+    <div class="auto-scan-status" id="autoScanStatus">
+      <div class="auto-scan-dot"></div>
+      <span id="autoScanText">Scan runs automatically on connect</span>
+    </div>
+    <button class="btn-abort" id="btnAbort">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
       </svg>
-      Run New Test
+      Abort
     </button>
   </div>
+
 </main>
 
 <div id="connectingOverlay">
   <div class="spinner"></div>
   <div class="connecting-text" id="connectingText">Connecting to sensor via Bluetooth…</div>
 </div>
-
 <div id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-
 <script>
-// ── BLE UUIDs (must match firmware exactly) ───────────────────────
-const BLE_DEVICE_NAME       = 'Sense-ESP32';
-const BLE_SERVICE_UUID      = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
-const BLE_TX_CHAR_UUID      = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // notify (ESP32 → browser)
-const BLE_RX_CHAR_UUID      = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // write  (browser → ESP32)
+// ── BLE UUIDs ─────────────────────────────────────────────────────
+const BLE_DEVICE_NAME  = 'Sense-ESP32';
+const BLE_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const BLE_TX_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+const BLE_RX_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
 
 // ── BLE state ─────────────────────────────────────────────────────
-let connected            = false;
-let bleDevice            = null;
-let bleServer            = null;
-let bleService           = null;
-let txCharacteristic     = null; // notifications in
-let rxCharacteristic     = null; // commands out
-let receiveBuffer        = '';   // accumulates partial BLE packets
+let connected = false, bleDevice = null, bleServer = null;
+let bleService = null, txCharacteristic = null, rxCharacteristic = null;
+let receiveBuffer = '', caPending = false;
 
-// ── Test history (seed with demo data) ───────────────────────────
+// ── Live scan state ───────────────────────────────────────────────
+let livePoints      = [];
+let expectedPoints  = 0;
+let chartUpdateTimer = null;
+const CHART_UPDATE_MS = 150;
+
+// ── Demo seed data ────────────────────────────────────────────────
 const history = [
   { date: 'Feb 6',  urea: 14, glucose: 88,  health: 87 },
   { date: 'Feb 13', urea: 16, glucose: 92,  health: 82 },
@@ -563,341 +327,322 @@ const history = [
   { date: 'Feb 27', urea: 17, glucose: 94,  health: 78 },
 ];
 
-// ── Chart setup ───────────────────────────────────────────────────
-Chart.defaults.font.family = "'DM Mono', monospace";
-
-const trendChart = new Chart(
-  document.getElementById('trendChart').getContext('2d'),
-  {
-    type: 'line',
-    data: {
-      labels: history.map(h => h.date),
-      datasets: [
-        {
-          label: 'Urea',
-          data: history.map(h => h.urea),
-          borderColor: '#4a9aba',
-          backgroundColor: 'rgba(74,154,186,0.08)',
-          borderWidth: 2.5,
-          pointBackgroundColor: '#4a9aba',
-          pointRadius: 5, pointHoverRadius: 7,
-          tension: 0.4, fill: true,
-        },
-        {
-          label: 'Glucose',
-          data: history.map(h => h.glucose),
-          borderColor: '#3ecf8e',
-          backgroundColor: 'rgba(62,207,142,0.07)',
-          borderWidth: 2.5,
-          pointBackgroundColor: '#3ecf8e',
-          pointRadius: 5, pointHoverRadius: 7,
-          tension: 0.4, fill: true,
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: '#0d2238',
-          titleColor: '#7eb8d4',
-          bodyColor: '#cde4f0',
-          padding: 12,
-          cornerRadius: 8,
-          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} mg/dL` }
-        }
-      },
-      scales: {
-        x: { grid: { color: 'rgba(26,58,92,0.06)' }, ticks: { color: '#6b8cae', font: { size: 11 } } },
-        y: { grid: { color: 'rgba(26,58,92,0.06)' }, ticks: { color: '#6b8cae', font: { size: 11 } }, suggestedMin: 0 }
-      }
-    }
-  }
-);
-
-function refreshChart() {
-  trendChart.data.labels            = history.map(h => h.date);
-  trendChart.data.datasets[0].data  = history.map(h => h.urea);
-  trendChart.data.datasets[1].data  = history.map(h => h.glucose);
-  trendChart.update();
-}
-
 // ── Health scoring ────────────────────────────────────────────────
 function calcHealth(urea, glucose) {
-  const ureaScore    = Math.max(0, 100 - Math.abs(urea    - 13.5) * 4);
-  const glucoseScore = Math.max(0, 100 - Math.abs(glucose - 85)   * 0.8);
-  return Math.round(ureaScore * 0.6 + glucoseScore * 0.4);
+  return Math.round(
+    Math.max(0, 100 - Math.abs(urea - 13.5) * 4) * 0.6 +
+    Math.max(0, 100 - Math.abs(glucose - 85) * 0.8) * 0.4
+  );
 }
-
 function healthLabel(score) {
   if (score >= 75) return { text: 'Good',     cls: 'level-good',     color: '#3ecf8e' };
   if (score >= 50) return { text: 'Moderate', cls: 'level-moderate', color: '#f6c545' };
   return               { text: 'Poor',     cls: 'level-poor',     color: '#e05f5f' };
 }
 
-// ── UI: update metric cards ───────────────────────────────────────
+// ── Trend chart ───────────────────────────────────────────────────
+Chart.defaults.font.family = "'DM Mono', monospace";
+
+const trendChart = new Chart(document.getElementById('trendChart').getContext('2d'), {
+  type: 'line',
+  data: {
+    labels: history.map(h => h.date),
+    datasets: [
+      { label: 'Urea',    data: history.map(h => h.urea),    borderColor: '#4a9aba', backgroundColor: 'rgba(74,154,186,.08)',  borderWidth: 2.5, pointBackgroundColor: '#4a9aba', pointRadius: 5, pointHoverRadius: 7, tension: 0.4, fill: true },
+      { label: 'Glucose', data: history.map(h => h.glucose), borderColor: '#3ecf8e', backgroundColor: 'rgba(62,207,142,.07)', borderWidth: 2.5, pointBackgroundColor: '#3ecf8e', pointRadius: 5, pointHoverRadius: 7, tension: 0.4, fill: true },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0d2238', titleColor: '#7eb8d4', bodyColor: '#cde4f0', padding: 12, cornerRadius: 8, callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} mg/dL` } } },
+    scales: {
+      x: { grid: { color: 'rgba(26,58,92,.06)' }, ticks: { color: '#6b8cae', font: { size: 11 } } },
+      y: { grid: { color: 'rgba(26,58,92,.06)' }, ticks: { color: '#6b8cae', font: { size: 11 } }, suggestedMin: 0 }
+    }
+  }
+});
+
+// ── CA live chart ─────────────────────────────────────────────────
+let caChart = null;
+
+function initCAChart() {
+  document.getElementById('caChartEmpty').style.display = 'none';
+  document.getElementById('caChartWrap').style.display  = 'block';
+  const ctx = document.getElementById('caChart').getContext('2d');
+  if (caChart) caChart.destroy();
+  caChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        data: [],
+        borderColor: '#a78bfa',
+        backgroundColor: 'rgba(167,139,250,.12)',
+        borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: true,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: false,
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: '#0d2238', titleColor: '#a78bfa', bodyColor: '#cde4f0', padding: 8, cornerRadius: 6, callbacks: { label: ctx => ` ${ctx.parsed.y.toFixed(3)} µA` } } },
+      scales: {
+        x: { grid: { color: 'rgba(26,58,92,.05)' }, ticks: { color: '#6b8cae', font: { size: 9 }, maxTicksLimit: 6 } },
+        y: { grid: { color: 'rgba(26,58,92,.05)' }, ticks: { color: '#6b8cae', font: { size: 9 }, maxTicksLimit: 5 } }
+      }
+    }
+  });
+}
+
+function scheduleChartUpdate() {
+  if (chartUpdateTimer) return;
+  chartUpdateTimer = setTimeout(() => {
+    chartUpdateTimer = null;
+    if (!caChart || livePoints.length === 0) return;
+    caChart.data.labels           = livePoints.map(p => p.t.toFixed(1) + 's');
+    caChart.data.datasets[0].data = livePoints.map(p => p.c);
+    caChart.update('none');
+  }, CHART_UPDATE_MS);
+}
+
+// ── Metric updaters ───────────────────────────────────────────────
 function updateMetrics(urea, glucose) {
   const health = calcHealth(urea, glucose);
   const label  = healthLabel(health);
-
   document.getElementById('ureaValue').innerHTML    = `${urea}<span class="metric-unit"> mg/dL</span>`;
   document.getElementById('glucoseValue').innerHTML = `${glucose}<span class="metric-unit"> mg/dL</span>`;
-
   const ureaOk = urea >= 7 && urea <= 20;
-  const ureaSub = document.getElementById('ureaSub');
-  ureaSub.textContent = ureaOk ? '✓ Within normal range' : '⚠ Outside normal range';
-  ureaSub.style.color = ureaOk ? '#1da870' : '#e05f5f';
-
+  const el1 = document.getElementById('ureaSub');
+  el1.textContent = ureaOk ? '✓ Within normal range' : '⚠ Outside normal range';
+  el1.style.color = ureaOk ? '#1da870' : '#e05f5f';
   const glucOk = glucose >= 70 && glucose <= 100;
-  const glucSub = document.getElementById('glucoseSub');
-  glucSub.textContent = glucOk ? '✓ Within normal range' : '⚠ Outside normal range';
-  glucSub.style.color = glucOk ? '#1da870' : '#e05f5f';
-
+  const el2 = document.getElementById('glucoseSub');
+  el2.textContent = glucOk ? '✓ Within normal range' : '⚠ Outside normal range';
+  el2.style.color = glucOk ? '#1da870' : '#e05f5f';
   const arc = document.getElementById('gaugeArc');
-  const offset = 126 - (health / 100) * 126;
-  arc.style.transition = 'stroke-dashoffset 0.8s ease, stroke 0.5s';
-  arc.setAttribute('stroke-dashoffset', offset);
+  arc.style.transition = 'stroke-dashoffset .8s ease, stroke .5s';
+  arc.setAttribute('stroke-dashoffset', 126 - (health / 100) * 126);
   arc.setAttribute('stroke', label.color);
   document.getElementById('gaugeLabel').textContent = health + '%';
-
   const tag = document.getElementById('healthTag');
-  tag.textContent = label.text;
-  tag.className   = `health-level-tag ${label.cls}`;
-
+  tag.textContent = label.text; tag.className = `health-level-tag ${label.cls}`;
   const factors = [];
-  if      (urea < 7)    factors.push('Low urea — possible liver issue');
+  if (urea < 7)         factors.push('Low urea — possible liver issue');
   else if (urea > 20)   factors.push('High urea — possible kidney stress');
   else                  factors.push('Urea normal');
-  if      (glucose < 70)  factors.push('Low glucose — monitor closely');
+  if (glucose < 70)     factors.push('Low glucose — monitor closely');
   else if (glucose > 100) factors.push('Elevated glucose — watch diet');
-  else                    factors.push('Glucose normal');
+  else                  factors.push('Glucose normal');
   document.getElementById('healthFactors').innerHTML = factors.join('<br>');
-
   return health;
 }
 
-// ── UI: history table ─────────────────────────────────────────────
+function updateCAStats(data) {
+  document.getElementById('caEmptyMsg').style.display  = 'none';
+  document.getElementById('caStatsGrid').style.display = 'grid';
+  document.getElementById('caPeak').innerHTML   = `${data.peak_uA.toFixed(2)}<span class="ca-stat-unit"> µA</span>`;
+  document.getElementById('caFinal').innerHTML  = `${data.final_uA.toFixed(2)}<span class="ca-stat-unit"> µA</span>`;
+  document.getElementById('caPoints').textContent = data.points;
+  const now = new Date();
+  document.getElementById('caRunMeta').textContent =
+    `${data.points} pts · ${data.duration_s}s · ${now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}`;
+}
+
+// ── History table ─────────────────────────────────────────────────
 function refreshTable() {
   const tbody = document.getElementById('historyBody');
-  if (!history.length) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1.5rem 0;font-family:var(--mono);font-size:0.8rem;">No test data yet.</td></tr>`;
-    return;
-  }
+  if (!history.length) { tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1.5rem 0;font-family:var(--mono);font-size:.8rem;">No test data yet.</td></tr>`; return; }
   tbody.innerHTML = [...history].reverse().map(row => {
     const lbl = healthLabel(row.health);
-    return `<tr>
-      <td>${row.date}</td>
-      <td>${row.urea}</td>
-      <td>${row.glucose}</td>
-      <td>${row.health}%</td>
-      <td><span class="badge ${lbl.cls}">${lbl.text}</span></td>
-    </tr>`;
+    return `<tr><td>${row.date}</td><td>${row.urea}</td><td>${row.glucose}</td><td>${row.health}%</td><td><span class="badge ${lbl.cls}">${lbl.text}</span></td></tr>`;
   }).join('');
 }
 
 refreshTable();
+updateMetrics(history[history.length-1].urea, history[history.length-1].glucose);
 
 // ── DOM refs ──────────────────────────────────────────────────────
-const btnConnect       = document.getElementById('btnConnect');
-const btnRunTest       = document.getElementById('btnRunTest');
+const btnConnect        = document.getElementById('btnConnect');
+const btnAbort          = document.getElementById('btnAbort');
 const connectingOverlay = document.getElementById('connectingOverlay');
-const connectingText   = document.getElementById('connectingText');
-const statusDot        = document.getElementById('statusDot');
-const statusText       = document.getElementById('statusText');
+const connectingText    = document.getElementById('connectingText');
+const statusDot         = document.getElementById('statusDot');
+const statusText        = document.getElementById('statusText');
+const autoScanStatus    = document.getElementById('autoScanStatus');
+const autoScanText      = document.getElementById('autoScanText');
 
-// ── BLE: send a command to the ESP32 ─────────────────────────────
-async function sendBleCommand(command) {
-  if (!rxCharacteristic) throw new Error('Not connected — RX characteristic unavailable');
-  const encoded = new TextEncoder().encode(command + '\n');
-  await rxCharacteristic.writeValue(encoded);
-  console.log('BLE TX:', command);
+// ── BLE: send ─────────────────────────────────────────────────────
+async function sendBleCommand(cmd) {
+  if (!rxCharacteristic) throw new Error('Not connected');
+  await rxCharacteristic.writeValue(new TextEncoder().encode(cmd + '\n'));
+}
+
+// ── Auto-run CA scan ──────────────────────────────────────────────
+async function runCA() {
+  if (!connected || !rxCharacteristic || caPending) return;
+  caPending = true;
+  btnAbort.classList.add('visible');
+  autoScanStatus.classList.add('scanning');
+  autoScanText.textContent = 'Scanning…';
+  toast('Scan started — streaming live data…', '#a78bfa');
+  try {
+    await sendBleCommand('POST /ca');
+  } catch (err) {
+    toast('Failed to send command: ' + (err.message || 'Unknown error'), '#e05f5f');
+    caPending = false;
+    resetScanUI();
+  }
 }
 
 // ── BLE: connect ──────────────────────────────────────────────────
 btnConnect.addEventListener('click', attemptConnect);
 
 async function attemptConnect() {
-  if (!navigator.bluetooth) {
-    toast('Web Bluetooth is not supported in this browser.\nUse Chrome or Edge on desktop/Android.', '#e05f5f');
-    return;
-  }
-
+  if (!navigator.bluetooth) { toast('Web Bluetooth not supported. Use Chrome or Edge on desktop/Android.', '#e05f5f'); return; }
   connectingOverlay.classList.add('active');
   connectingText.textContent = 'Opening Bluetooth picker…';
-
   try {
-    console.log('Requesting BLE device by name:', BLE_DEVICE_NAME);
-
-    // ── KEY FIX: filter by device NAME, not service UUID ──────────
-    // Filtering by services requires the ESP32 to include the full
-    // 128-bit UUID in its advertising packet, which it often doesn't.
-    // Filtering by name is much more reliable.
-    bleDevice = await navigator.bluetooth.requestDevice({
-      filters: [{ name: BLE_DEVICE_NAME }],
-      optionalServices: [BLE_SERVICE_UUID]
-    });
-
+    bleDevice = await navigator.bluetooth.requestDevice({ filters: [{ name: BLE_DEVICE_NAME }], optionalServices: [BLE_SERVICE_UUID] });
     bleDevice.addEventListener('gattserverdisconnected', handleDisconnect);
-
     connectingText.textContent = 'Connecting to GATT server…';
-    console.log('Connecting GATT…');
-    bleServer = await bleDevice.gatt.connect();
-
+    bleServer  = await bleDevice.gatt.connect();
     connectingText.textContent = 'Discovering services…';
-    console.log('Getting primary service…');
     bleService = await bleServer.getPrimaryService(BLE_SERVICE_UUID);
-
-    console.log('Getting TX characteristic (notify)…');
     txCharacteristic = await bleService.getCharacteristic(BLE_TX_CHAR_UUID);
-
-    console.log('Getting RX characteristic (write)…');
     rxCharacteristic = await bleService.getCharacteristic(BLE_RX_CHAR_UUID);
-
     connectingText.textContent = 'Subscribing to notifications…';
-    console.log('Starting notifications…');
     await txCharacteristic.startNotifications();
     txCharacteristic.addEventListener('characteristicvaluechanged', handleNotification);
-
     connectingOverlay.classList.remove('active');
     setConnected(true);
-    toast('Connected to ' + bleDevice.name, '#3ecf8e');
+    toast('Connected to ' + bleDevice.name + ' — starting scan…', '#3ecf8e');
 
-    // Request latest data immediately after connecting
-    receiveBuffer = '';
-    await sendBleCommand('GET /data');
+    // ── Auto-run scan immediately after connecting ─────────────────
+    runCA();
 
   } catch (err) {
     connectingOverlay.classList.remove('active');
-    console.error('BLE error:', err);
-
-    // User cancelled the picker — don't show an error toast
-    if (err.name === 'NotFoundError') {
-      toast('No device selected.', '#f6c545');
-    } else {
-      toast('Bluetooth failed: ' + (err.message || err.name), '#e05f5f');
-    }
+    toast(err.name === 'NotFoundError' ? 'No device selected.' : 'Bluetooth error: ' + (err.message || err.name), '#e05f5f');
     setConnected(false);
   }
 }
 
-// ── BLE: disconnection handler ────────────────────────────────────
 function handleDisconnect() {
-  console.warn('BLE disconnected');
   setConnected(false);
-  txCharacteristic = null;
-  rxCharacteristic = null;
-  receiveBuffer    = '';
+  txCharacteristic = rxCharacteristic = null;
+  receiveBuffer = ''; caPending = false;
+  resetScanUI();
   toast('Sensor disconnected.', '#e05f5f');
 }
 
-// ── BLE: update UI connection state ──────────────────────────────
 function setConnected(state) {
   connected = state;
   statusDot.className    = 'dot' + (state ? '' : ' disconnected');
-  statusText.textContent = state ? (bleDevice?.name || 'BLE connected') : 'Not connected';
+  statusText.textContent = state ? (bleDevice?.name || 'Connected') : 'Not connected';
   btnConnect.textContent = state ? 'Reconnect' : 'Connect to Sensor';
-  btnRunTest.disabled    = !state;
-}
-
-// ── BLE: receive & buffer incoming data ──────────────────────────
-// BLE packets can be split across multiple notifications (MTU ~20 bytes).
-// We accumulate into a buffer and process complete newline-delimited lines.
-function handleNotification(event) {
-  const chunk = new TextDecoder('utf-8').decode(event.target.value.buffer);
-  receiveBuffer += chunk;
-  console.log('BLE RX chunk:', JSON.stringify(chunk));
-
-  let newlineIdx;
-  while ((newlineIdx = receiveBuffer.indexOf('\n')) >= 0) {
-    const line = receiveBuffer.substring(0, newlineIdx).trim();
-    receiveBuffer = receiveBuffer.substring(newlineIdx + 1);
-    if (line.length > 0) processLine(line);
+  if (!state) {
+    autoScanStatus.classList.remove('scanning');
+    autoScanText.textContent = 'Scan runs automatically on connect';
   }
 }
 
-// ── BLE: process a complete line from the device ─────────────────
+// ── BLE: receive ──────────────────────────────────────────────────
+function handleNotification(event) {
+  receiveBuffer += new TextDecoder('utf-8').decode(event.target.value.buffer);
+  let idx;
+  while ((idx = receiveBuffer.indexOf('\n')) >= 0) {
+    const line = receiveBuffer.substring(0, idx).trim();
+    receiveBuffer = receiveBuffer.substring(idx + 1);
+    if (line.length) processLine(line);
+  }
+}
+
 function processLine(line) {
-  console.log('BLE RX line:', line);
-
-  // Skip raw CSV header
-  if (line.startsWith('voltage_V')) return;
-
+  console.log('BLE RX:', line);
   try {
     const data = JSON.parse(line);
 
-    if (data.error) {
-      toast('Device error: ' + data.error, '#e05f5f');
+    if (data.type === 'ca_start') {
+      expectedPoints = data.total_points;
+      livePoints = [];
+      initCAChart();
+      document.getElementById('caProgressWrap').classList.add('visible');
+      document.getElementById('caProgressFill').style.width = '0%';
+      document.getElementById('caProgressLabel').textContent = `0 / ${expectedPoints} points`;
+      document.getElementById('caRunMeta').textContent = 'Scanning…';
       return;
     }
 
-    if (data.urea !== undefined && data.glucose !== undefined) {
-      ingestReading(data);
-    }
-  } catch (err) {
-    // Non-JSON line (e.g. raw CSV row) — ignore silently
-    console.log('Non-JSON line (ignored):', line);
-  }
-}
-
-// ── Ingest a reading into the dashboard ──────────────────────────
-function ingestReading(data) {
-  const urea    = parseFloat(Number(data.urea).toFixed(1));
-  const glucose = parseFloat(Number(data.glucose).toFixed(1));
-  const health  = updateMetrics(urea, glucose);
-
-  const now     = new Date();
-  const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  document.getElementById('headerLastTest').textContent =
-    dateStr + ' ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-
-  history.push({ date: dateStr, urea, glucose, health });
-  if (history.length > 20) history.shift();
-
-  refreshChart();
-  refreshTable();
-}
-
-// ── Run Test button ───────────────────────────────────────────────
-btnRunTest.addEventListener('click', async () => {
-  if (!connected || !rxCharacteristic) return;
-
-  btnRunTest.disabled = true;
-  btnRunTest.innerHTML = `
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-    </svg> Running…`;
-  toast('Test initiated — collecting sample…', '#7eb8d4');
-
-  try {
-    await sendBleCommand('POST /run');
-  } catch (err) {
-    console.error(err);
-    toast('Failed to send run command: ' + (err.message || 'Unknown error'), '#e05f5f');
-  } finally {
-    // Re-enable after a delay (firmware scan takes ~2–5 s)
-    setTimeout(() => {
-      if (connected) {
-        btnRunTest.disabled = false;
-        btnRunTest.innerHTML = `
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-          </svg> Run New Test`;
+    if (data.i !== undefined && data.t !== undefined && data.c !== undefined) {
+      livePoints.push({ i: data.i, t: data.t, c: data.c });
+      scheduleChartUpdate();
+      if (expectedPoints > 0) {
+        const pct = Math.min(100, Math.round(livePoints.length / expectedPoints * 100));
+        document.getElementById('caProgressFill').style.width = pct + '%';
+        document.getElementById('caProgressLabel').textContent = `${livePoints.length} / ${expectedPoints} points`;
       }
-    }, 5000);
-  }
+      return;
+    }
+
+    if (data.type === 'ca') {
+      document.getElementById('caProgressWrap').classList.remove('visible');
+
+      if (data.status === 'ok') {
+        updateCAStats(data);
+        const urea    = parseFloat(Math.max(0, 8.50 * data.peak_uA + 2.00).toFixed(1));
+        const glucose = parseFloat(Math.max(0, 2.80 * data.peak_uA + 10.0).toFixed(1));
+        const health  = updateMetrics(urea, glucose);
+        const now     = new Date();
+        const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        document.getElementById('headerLastTest').textContent =
+          dateStr + ' ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        history.push({ date: dateStr, urea, glucose, health });
+        if (history.length > 20) history.shift();
+        trendChart.data.labels           = history.map(h => h.date);
+        trendChart.data.datasets[0].data = history.map(h => h.urea);
+        trendChart.data.datasets[1].data = history.map(h => h.glucose);
+        trendChart.update();
+        refreshTable();
+        toast('Scan complete', '#a78bfa');
+      } else {
+        toast('Scan aborted', '#f6c545');
+      }
+
+      caPending = false;
+      resetScanUI();
+      return;
+    }
+
+    if (data.error) {
+      toast('Device error: ' + data.error, '#e05f5f');
+      caPending = false;
+      resetScanUI();
+    }
+
+  } catch (_) { /* non-JSON, ignore */ }
+}
+
+// ── Abort button ──────────────────────────────────────────────────
+btnAbort.addEventListener('click', async () => {
+  if (!connected || !rxCharacteristic) return;
+  try { await sendBleCommand('POST /abort'); } catch (_) {}
+  toast('Abort sent…', '#f6c545');
 });
 
-// ── Toast helper ──────────────────────────────────────────────────
+function resetScanUI() {
+  btnAbort.classList.remove('visible');
+  autoScanStatus.classList.remove('scanning');
+  autoScanText.textContent = connected
+    ? 'Scan complete — reconnect to run again'
+    : 'Scan runs automatically on connect';
+}
+
+// ── Toast ─────────────────────────────────────────────────────────
 let toastTimer;
 function toast(msg, accent = '#3ecf8e') {
   const el = document.getElementById('toast');
-  el.textContent       = msg;
-  el.style.borderLeftColor = accent;
-  el.classList.add('show');
-  clearTimeout(toastTimer);
+  el.textContent = msg; el.style.borderLeftColor = accent;
+  el.classList.add('show'); clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
 }
 </script>
